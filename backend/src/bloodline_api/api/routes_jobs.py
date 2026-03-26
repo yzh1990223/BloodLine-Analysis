@@ -23,3 +23,21 @@ def list_jobs(db: Session = Depends(get_db)) -> dict[str, list[dict[str, object]
         for job_node in lineage_query_service.list_jobs(db)
     ]
     return {"items": items}
+
+
+@router.get("/jobs/{job_key:path}")
+def job_detail(job_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    detail = lineage_query_service.get_job_detail(db, job_key)
+    return detail or {"id": None, "key": job_key, "name": None, "transformations": [], "tables": []}
+
+
+@router.get("/java-modules/{module_key:path}")
+def java_module_detail(module_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    detail = lineage_query_service.get_java_module_detail(db, module_key)
+    return detail or {
+        "id": None,
+        "key": module_key,
+        "name": None,
+        "read_tables": [],
+        "write_tables": [],
+    }

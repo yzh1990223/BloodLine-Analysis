@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from bloodline_api.models import Edge, Node, ScanRun
@@ -29,6 +29,11 @@ def _node_payload(node_type: str, source: str | None = None) -> dict[str, Any]:
 
 class LineageQueryService:
     """Small read-side service for the API routes."""
+
+    def reset_graph_state(self, db: Session) -> None:
+        db.execute(delete(Edge))
+        db.execute(delete(Node))
+        db.flush()
 
     def _get_or_create_node(self, db: Session, node_type: str, key: str, name: str) -> Node:
         node = db.scalar(select(Node).where(Node.key == key))
@@ -125,6 +130,7 @@ class LineageQueryService:
         mysql_dsn: str | None = None,
     ) -> ScanRun:
         _ = mysql_dsn
+        self.reset_graph_state(db)
         now = datetime.now(timezone.utc)
         scan_run = ScanRun(status="running", started_at=now)
         db.add(scan_run)
@@ -294,8 +300,131 @@ class LineageQueryService:
         lineage = self.get_table_lineage(db, table_key)
         if lineage is None:
             return None
-        lineage["impacted_tables"] = lineage["downstream_tables"]
+        table = db.scalar(select(Node).where(Node.type == "table", Node.key == table_key))
+        if table is None:
+            return None
+
+        impacted_tables = self._collect_downstream_tables(db, table.id, max_hops=3)
+        lineage["impacted_tables"] = impacted_tables
         return lineage
+
+    def _collect_downstream_tables(
+        self, db: Session, start_table_id: int, *, max_hops: int = 3
+    ) -> list[dict[str, Any]]:
+        frontier = {start_table_id}
+        seen = {start_table_id}
+        impacted: list[dict[str, Any]] = []
+
+        for hop in range(1, max_hops + 1):
+            if not frontier:
+                break
+
+            next_ids = db.scalars(
+                select(Edge.dst_node_id).where(
+                    Edge.type == "FLOWS_TO",
+                    Edge.src_node_id.in_(frontier),
+                )
+            ).all()
+            next_frontier: set[int] = set()
+            for node_id in next_ids:
+                if node_id in seen:
+                    continue
+                seen.add(node_id)
+                next_frontier.add(node_id)
+                node = db.get(Node, node_id)
+                if node is not None and node.type == "table":
+                    impacted.append(
+                        {"id": node.id, "key": node.key, "name": node.name, "hop": hop}
+                    )
+            frontier = next_frontier
+
+        return impacted
+
+    def get_job_detail(self, db: Session, job_key: str) -> dict[str, Any] | None:
+        job = db.scalar(select(Node).where(Node.type == "job", Node.key == job_key))
+        if job is None:
+            return None
+
+        transformation_rows = db.scalars(
+            select(Node)
+            .join(Edge, Edge.dst_node_id == Node.id)
+            .where(Edge.type == "CALLS", Edge.src_node_id == job.id)
+            .order_by(Node.name.asc(), Node.id.asc())
+        ).all()
+
+        table_ids: set[int] = set()
+        for transformation in transformation_rows:
+            table_ids.update(
+                db.scalars(
+                    select(Edge.dst_node_id).where(
+                        Edge.src_node_id == transformation.id,
+                        Edge.type.in_(("READS", "WRITES")),
+                    )
+                ).all()
+            )
+
+        table_rows = []
+        if table_ids:
+            table_rows = list(
+                db.scalars(
+                    select(Node)
+                    .where(Node.id.in_(table_ids))
+                    .order_by(Node.name.asc(), Node.id.asc())
+                ).all()
+            )
+
+        return {
+            "id": job.id,
+            "key": job.key,
+            "name": job.name,
+            "transformations": [
+                {"id": node.id, "key": node.key, "name": node.name} for node in transformation_rows
+            ],
+            "tables": [{"id": node.id, "key": node.key, "name": node.name} for node in table_rows],
+        }
+
+    def get_java_module_detail(self, db: Session, module_key: str) -> dict[str, Any] | None:
+        module = db.scalar(select(Node).where(Node.type == "java_module", Node.key == module_key))
+        if module is None:
+            return None
+
+        read_ids = db.scalars(
+            select(Edge.dst_node_id).where(Edge.type == "READS", Edge.src_node_id == module.id)
+        ).all()
+        write_ids = db.scalars(
+            select(Edge.dst_node_id).where(Edge.type == "WRITES", Edge.src_node_id == module.id)
+        ).all()
+
+        read_tables = []
+        if read_ids:
+            read_tables = list(
+                db.scalars(
+                    select(Node)
+                    .where(Node.id.in_(read_ids))
+                    .order_by(Node.name.asc(), Node.id.asc())
+                ).all()
+            )
+        write_tables = []
+        if write_ids:
+            write_tables = list(
+                db.scalars(
+                    select(Node)
+                    .where(Node.id.in_(write_ids))
+                    .order_by(Node.name.asc(), Node.id.asc())
+                ).all()
+            )
+
+        return {
+            "id": module.id,
+            "key": module.key,
+            "name": module.name,
+            "read_tables": [
+                {"id": node.id, "key": node.key, "name": node.name} for node in read_tables
+            ],
+            "write_tables": [
+                {"id": node.id, "key": node.key, "name": node.name} for node in write_tables
+            ],
+        }
 
 
 lineage_query_service = LineageQueryService()
