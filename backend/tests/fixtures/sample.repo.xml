@@ -1,0 +1,23 @@
+<repository>
+  <jobs>
+    <job>
+      <name>daily_summary_job</name>
+      <transformation>load_user_order_summary</transformation>
+    </job>
+  </jobs>
+  <transformations>
+    <transformation>
+      <name>load_user_order_summary</name>
+      <steps>
+        <step>
+          <name>table_input_1</name>
+          <sql>select * from ods.orders</sql>
+        </step>
+        <step>
+          <name>table_output_1</name>
+          <sql>insert into dm.user_order_summary select * from ods.orders</sql>
+        </step>
+      </steps>
+    </transformation>
+  </transformations>
+</repository>
