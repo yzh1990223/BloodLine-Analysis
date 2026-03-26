@@ -14,6 +14,8 @@ class Base(DeclarativeBase):
 
 
 class ScanRun(Base):
+    """One execution of the file-driven lineage scan pipeline."""
+
     __tablename__ = "scan_runs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -28,6 +30,8 @@ class ScanRun(Base):
 
 
 class Node(Base):
+    """A persisted graph node such as a table, job, transformation, or module."""
+
     __tablename__ = "nodes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -51,6 +55,8 @@ class Node(Base):
 
 
 class Edge(Base):
+    """A persisted graph edge connecting two nodes in the lineage graph."""
+
     __tablename__ = "edges"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

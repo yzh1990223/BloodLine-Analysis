@@ -18,24 +18,32 @@ BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _resolve_input_path(value: str) -> Path:
+    """Resolve relative scan inputs against the backend workspace."""
+
     path = Path(value)
     return path if path.is_absolute() else BACKEND_ROOT / path
 
 
 def _node_payload(node_type: str, source: str | None = None) -> dict[str, Any]:
+    """Build the minimal payload stored on graph nodes in the MVP."""
+
     payload: dict[str, Any] = {"source": source or node_type}
     return payload
 
 
 class LineageQueryService:
-    """Small read-side service for the API routes."""
+    """Orchestrate scan persistence and graph-shaped query responses."""
 
     def reset_graph_state(self, db: Session) -> None:
+        """Clear persisted graph entities before a full rescan rebuild."""
+
         db.execute(delete(Edge))
         db.execute(delete(Node))
         db.flush()
 
     def _get_or_create_node(self, db: Session, node_type: str, key: str, name: str) -> Node:
+        """Upsert a graph node by stable business key."""
+
         node = db.scalar(select(Node).where(Node.key == key))
         if node is not None:
             return node
@@ -55,6 +63,8 @@ class LineageQueryService:
         is_derived: bool = False,
         payload: dict[str, Any] | None = None,
     ) -> Edge:
+        """Ensure a unique edge exists for a given source/target/type tuple."""
+
         edge = db.scalar(
             select(Edge).where(
                 Edge.type == edge_type,
@@ -78,6 +88,8 @@ class LineageQueryService:
         return edge
 
     def _related_objects(self, db: Session, table: Node) -> dict[str, list[dict[str, Any]]]:
+        """Collect jobs, Java modules, and transformations linked to one table."""
+
         transformation_nodes: dict[str, Node] = {}
         job_nodes: dict[str, Node] = {}
         java_module_nodes: dict[str, Node] = {}
@@ -129,6 +141,8 @@ class LineageQueryService:
         java_source_root: str | None = None,
         mysql_dsn: str | None = None,
     ) -> ScanRun:
+        """Run the MVP scan pipeline and persist the resulting graph state."""
+
         _ = mysql_dsn
         self.reset_graph_state(db)
         now = datetime.now(timezone.utc)
@@ -250,6 +264,8 @@ class LineageQueryService:
         return scan_run
 
     def search_tables(self, db: Session, query: str = "") -> list[Node]:
+        """Search table nodes by key or name for the frontend search page."""
+
         stmt = select(Node).where(Node.type == "table")
         if query:
             pattern = f"%{query}%"
@@ -258,14 +274,20 @@ class LineageQueryService:
         return list(db.scalars(stmt).all())
 
     def list_scan_runs(self, db: Session) -> list[ScanRun]:
+        """Return scan runs in reverse chronological order."""
+
         stmt = select(ScanRun).order_by(ScanRun.created_at.desc(), ScanRun.id.desc())
         return list(db.scalars(stmt).all())
 
     def list_jobs(self, db: Session) -> list[Node]:
+        """Return scanned job nodes for list views and related-object lookups."""
+
         stmt = select(Node).where(Node.type == "job").order_by(Node.name.asc(), Node.id.asc())
         return list(db.scalars(stmt).all())
 
     def get_table_lineage(self, db: Session, table_key: str) -> dict[str, Any] | None:
+        """Return one table with its direct upstream/downstream neighbors."""
+
         table = db.scalar(select(Node).where(Node.type == "table", Node.key == table_key))
         if table is None:
             return None
@@ -297,6 +319,8 @@ class LineageQueryService:
         }
 
     def get_table_impact(self, db: Session, table_key: str) -> dict[str, Any] | None:
+        """Extend direct lineage with downstream impact expansion."""
+
         lineage = self.get_table_lineage(db, table_key)
         if lineage is None:
             return None
@@ -311,6 +335,8 @@ class LineageQueryService:
     def _collect_downstream_tables(
         self, db: Session, start_table_id: int, *, max_hops: int = 3
     ) -> list[dict[str, Any]]:
+        """Traverse downstream table flows breadth-first up to a hop limit."""
+
         frontier = {start_table_id}
         seen = {start_table_id}
         impacted: list[dict[str, Any]] = []
@@ -341,6 +367,8 @@ class LineageQueryService:
         return impacted
 
     def get_job_detail(self, db: Session, job_key: str) -> dict[str, Any] | None:
+        """Return one job together with its called transformations and touched tables."""
+
         job = db.scalar(select(Node).where(Node.type == "job", Node.key == job_key))
         if job is None:
             return None
@@ -384,6 +412,8 @@ class LineageQueryService:
         }
 
     def get_java_module_detail(self, db: Session, module_key: str) -> dict[str, Any] | None:
+        """Return one Java module together with its read/write table sets."""
+
         module = db.scalar(select(Node).where(Node.type == "java_module", Node.key == module_key))
         if module is None:
             return None

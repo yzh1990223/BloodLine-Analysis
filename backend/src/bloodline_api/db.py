@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from bloodline_api.config import DATABASE_URL, SQLALCHEMY_ECHO
 
 
+# The MVP keeps a single process-wide engine/session factory pair.
 engine = create_engine(DATABASE_URL, echo=SQLALCHEMY_ECHO, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
 

@@ -16,7 +16,7 @@ def iter_fact_edges(edges: Iterable[FactEdge]) -> list[FactEdge]:
 
 
 def materialize_derived_flow_edges(flow_node_pairs: Iterable[tuple[int, int]]) -> list[Edge]:
-    """Create derived FLOWS_TO edge instances for later persistence."""
+    """Create in-memory derived FLOWS_TO edges before they are persisted."""
 
     return [
         Edge(

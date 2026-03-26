@@ -11,6 +11,7 @@ export function LineageGraph({
   upstreamTables,
   downstreamTables,
 }: LineageGraphProps) {
+  // The MVP uses a textual three-column layout instead of a full graph canvas.
   return (
     <section className="panel">
       <h2>Lineage</h2>

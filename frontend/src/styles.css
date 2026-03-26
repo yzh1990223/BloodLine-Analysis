@@ -1,4 +1,5 @@
 :root {
+  /* Warm neutral styling keeps the MVP readable without overdesigning the UI. */
   color-scheme: light;
   font-family: "SF Pro Display", "Segoe UI", sans-serif;
   color: #1f2937;

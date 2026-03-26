@@ -1,3 +1,5 @@
+"""Parse Kettle `.repo` exports into job, transformation, and SQL step facts."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,17 +11,23 @@ from bloodline_api.parsers.sql_table_extractor import extract_tables
 
 @dataclass(slots=True)
 class NamedObject:
+    """Minimal named entity used for jobs and transformations."""
+
     name: str
 
 
 @dataclass(slots=True)
 class JobTransformationCall:
+    """A job-level invocation of a transformation."""
+
     job_name: str
     transformation_name: str
 
 
 @dataclass(slots=True)
 class RepoParseResult:
+    """Normalized lineage facts extracted from one Kettle repository export."""
+
     jobs: list[NamedObject] = field(default_factory=list)
     transformations: list[NamedObject] = field(default_factory=list)
     job_transformation_calls: list[JobTransformationCall] = field(default_factory=list)
@@ -28,11 +36,17 @@ class RepoParseResult:
 
 
 def _step_key(transformation_name: str, step_name: str) -> str:
+    """Scope step keys by transformation to avoid cross-transformation collisions."""
+
     return f"{transformation_name}::{step_name}"
 
 
 class RepoParser:
+    """Extract table-level lineage facts from a Kettle repository export."""
+
     def parse_file(self, path: Path) -> RepoParseResult:
+        """Parse jobs, transformation calls, and SQL-bearing steps from a repo file."""
+
         root = read_repo_root(path)
         result = RepoParseResult()
 

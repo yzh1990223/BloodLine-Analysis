@@ -14,6 +14,8 @@ router = APIRouter()
 
 
 class ScanRequest(BaseModel):
+    """Payload accepted by the scan endpoint."""
+
     model_config = ConfigDict(extra="ignore")
 
     repo_path: str | None = None
@@ -23,6 +25,8 @@ class ScanRequest(BaseModel):
 
 @router.post("/scan", status_code=202)
 def create_scan(request: ScanRequest | None = None, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Run a synchronous MVP scan and return the created scan-run record."""
+
     scan_run = lineage_query_service.scan_from_inputs(
         db,
         repo_path=None if request is None else request.repo_path,

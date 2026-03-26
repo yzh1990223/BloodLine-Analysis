@@ -6,6 +6,7 @@ interface SearchBarProps {
 }
 
 export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
+  // Keep local input state here so pages can stay focused on data fetching.
   const [value, setValue] = useState(defaultValue);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {

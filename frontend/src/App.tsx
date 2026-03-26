@@ -4,6 +4,7 @@ import { TableDetailPage } from "./pages/TableDetailPage";
 import { TableSearchPage } from "./pages/TableSearchPage";
 
 export default function App() {
+  // Keep routing intentionally small for the MVP: search, detail, and impact.
   return (
     <Routes>
       <Route path="/" element={<TableSearchPage />} />

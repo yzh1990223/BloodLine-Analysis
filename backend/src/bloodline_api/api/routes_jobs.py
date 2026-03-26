@@ -14,6 +14,8 @@ router = APIRouter()
 
 @router.get("/jobs")
 def list_jobs(db: Session = Depends(get_db)) -> dict[str, list[dict[str, object]]]:
+    """Return scanned job nodes for list views."""
+
     items = [
         {
             "id": job_node.id,
@@ -27,12 +29,16 @@ def list_jobs(db: Session = Depends(get_db)) -> dict[str, list[dict[str, object]
 
 @router.get("/jobs/{job_key:path}")
 def job_detail(job_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Return one job plus its related transformations and tables."""
+
     detail = lineage_query_service.get_job_detail(db, job_key)
     return detail or {"id": None, "key": job_key, "name": None, "transformations": [], "tables": []}
 
 
 @router.get("/java-modules/{module_key:path}")
 def java_module_detail(module_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Return one Java module plus its read/write table references."""
+
     detail = lineage_query_service.get_java_module_detail(db, module_key)
     return detail or {
         "id": None,

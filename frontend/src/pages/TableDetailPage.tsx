@@ -6,6 +6,7 @@ import { RelatedObjectsPanel } from "../components/RelatedObjectsPanel";
 import { TableLineageResponse } from "../types";
 
 export function TableDetailPage() {
+  // Detail views are keyed by the stable backend table key.
   const { tableKey = "" } = useParams();
   const decodedTableKey = decodeURIComponent(tableKey);
   const [lineage, setLineage] = useState<TableLineageResponse | null>(null);

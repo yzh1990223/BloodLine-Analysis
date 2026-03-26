@@ -1,3 +1,4 @@
+// Shared frontend response models mirroring the backend JSON contract.
 export interface TableSummary {
   id: number;
   key: string;

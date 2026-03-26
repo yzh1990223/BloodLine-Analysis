@@ -5,6 +5,7 @@ import { SearchBar } from "../components/SearchBar";
 import { TableSummary } from "../types";
 
 export function TableSearchPage() {
+  // The landing page is a thin search client over the backend table index.
   const [items, setItems] = useState<TableSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

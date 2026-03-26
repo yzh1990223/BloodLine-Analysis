@@ -4,6 +4,7 @@ import { fetchTableImpact } from "../api";
 import { TableImpactResponse } from "../types";
 
 export function ImpactPage() {
+  // Impact uses the backend's multi-hop traversal rather than recomputing on the client.
   const { tableKey = "" } = useParams();
   const decodedTableKey = decodeURIComponent(tableKey);
   const [impact, setImpact] = useState<TableImpactResponse | null>(null);

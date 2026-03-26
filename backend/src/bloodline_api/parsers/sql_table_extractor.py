@@ -1,3 +1,5 @@
+"""Utility functions for extracting table names from SQL text."""
+
 from __future__ import annotations
 
 from sqlglot import exp, parse_one
@@ -5,10 +7,14 @@ from sqlglot.errors import ParseError
 
 
 def _table_name(table: exp.Table) -> str:
+    """Return the physical table identifier without aliases."""
+
     return ".".join(part.this for part in table.parts)
 
 
 def _target_table(expression: exp.Expression) -> exp.Table | None:
+    """Return the write target when the SQL statement has one."""
+
     if isinstance(expression, (exp.Insert, exp.Update, exp.Delete, exp.Create)):
         target = expression.this
         if isinstance(target, exp.Table):
@@ -17,6 +23,8 @@ def _target_table(expression: exp.Expression) -> exp.Table | None:
 
 
 def extract_tables(sql: str) -> tuple[set[str], set[str]]:
+    """Split SQL table usage into read tables and write tables."""
+
     try:
         expression = parse_one(sql, read="mysql")
     except ParseError:

@@ -9,6 +9,8 @@ TableFlow = tuple[str, str]
 
 
 def _actor_scope(actor: str) -> str:
+    """Collapse parser-specific actor IDs to the scope used for flow derivation."""
+
     return actor.split("::", 1)[0]
 
 
