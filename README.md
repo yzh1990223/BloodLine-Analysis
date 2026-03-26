@@ -1,13 +1,13 @@
 # BloodLine Analysis
 
-Data lineage MVP for Kettle `.repo` files, Java source trees, and MySQL-oriented table lineage queries.
+一个面向 Kettle `.repo` 文件、Java 源码目录和 MySQL 表级血缘查询的 MVP 工具。
 
-## Workspaces
+## 项目结构
 
-- `backend`: FastAPI service and Python lineage pipeline
-- `frontend`: React + Vite user interface
+- `backend`：FastAPI 服务与 Python 血缘分析流水线
+- `frontend`：基于 React + Vite 的查询界面
 
-## Backend
+## 启动后端
 
 ```bash
 cd backend
@@ -16,7 +16,7 @@ UV_CACHE_DIR='/Users/nathan/Documents/GithubProjects/BloodLine Analysis/.uv-cach
 .venv/bin/uvicorn bloodline_api.main:app --reload
 ```
 
-## Frontend
+## 启动前端
 
 ```bash
 cd frontend
@@ -24,9 +24,9 @@ npm install
 npm run dev
 ```
 
-## Sample scan
+## 样例扫描
 
-Start the backend, then trigger a scan with the bundled fixtures:
+启动后端后，使用仓库内置的样例文件触发一次扫描：
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/scan \
@@ -37,12 +37,12 @@ curl -X POST http://127.0.0.1:8000/api/scan \
   }'
 ```
 
-The sample data builds this lineage chain:
+样例数据会构建出这条血缘链路：
 
 - `ods.orders -> dm.user_order_summary`
 - `dm.user_order_summary -> app.order_dashboard`
 
-Useful follow-up endpoints:
+常用查询接口：
 
 - `GET /api/tables/table:dm.user_order_summary/lineage`
 - `GET /api/tables/table:ods.orders/impact`
