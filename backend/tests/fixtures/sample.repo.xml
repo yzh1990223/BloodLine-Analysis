@@ -19,5 +19,18 @@
         </step>
       </steps>
     </transformation>
+    <transformation>
+      <name>refresh_daily_metrics</name>
+      <steps>
+        <step>
+          <name>table_input_1</name>
+          <sql>select * from ods.audit_log</sql>
+        </step>
+        <step>
+          <name>table_output_1</name>
+          <sql>insert into dm.audit_snapshot select * from ods.audit_log</sql>
+        </step>
+      </steps>
+    </transformation>
   </transformations>
 </repository>
