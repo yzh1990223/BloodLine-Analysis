@@ -11,6 +11,11 @@ public class UserOrderDao {
         execute(sql);
     }
 
+    public void publishDashboard() {
+        String sql = "insert into app.order_dashboard select * from dm.user_order_summary";
+        execute(sql);
+    }
+
     private void execute(String sql) {
         // no-op fixture
     }

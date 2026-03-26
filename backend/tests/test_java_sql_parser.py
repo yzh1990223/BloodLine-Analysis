@@ -8,8 +8,8 @@ def test_java_sql_parser_extracts_reads_and_writes():
     parser = JavaSqlParser()
     result = parser.parse_file(Path("tests/fixtures/java/UserOrderDao.java"))
     assert result.module_name == "UserOrderDao"
-    assert sorted(result.read_tables) == ["ods.orders"]
-    assert sorted(result.write_tables) == ["dm.user_order_summary"]
+    assert sorted(result.read_tables) == ["dm.user_order_summary", "ods.orders"]
+    assert sorted(result.write_tables) == ["app.order_dashboard", "dm.user_order_summary"]
 
 
 def test_extract_tables_normalizes_aliased_reads():

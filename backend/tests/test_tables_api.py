@@ -225,4 +225,9 @@ def test_job_and_java_module_detail_routes_return_compact_payloads(client):
 
     assert java_response.status_code == 200
     assert java_response.json()["key"] == "java_module:UserOrderDao"
-    assert java_response.json()["read_tables"][0]["key"] == "table:ods.orders"
+    read_table_keys = {item["key"] for item in java_response.json()["read_tables"]}
+    write_table_keys = {item["key"] for item in java_response.json()["write_tables"]}
+    assert "table:ods.orders" in read_table_keys
+    assert "table:dm.user_order_summary" in read_table_keys
+    assert "table:dm.user_order_summary" in write_table_keys
+    assert "table:app.order_dashboard" in write_table_keys
