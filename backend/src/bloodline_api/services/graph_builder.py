@@ -8,20 +8,27 @@ FactEdge = tuple[str, str, str]
 TableFlow = tuple[str, str]
 
 
+def _actor_scope(actor: str) -> str:
+    return actor.split("::", 1)[0]
+
+
 def build_table_flows(fact_edges: list[FactEdge]) -> list[TableFlow]:
     """Return unique table-to-table flows derived from fact edges.
 
-    The MVP derives flows only within the same actor node (`src`).
+    The MVP derives flows only within the same actor scope. Parser-shaped
+    step actors like ``transformation::step`` collapse to their transformation
+    prefix so reads and writes from different steps can still connect.
     """
 
     reads_by_actor: dict[str, set[str]] = defaultdict(set)
     writes_by_actor: dict[str, set[str]] = defaultdict(set)
 
     for edge_type, src, dst in fact_edges:
+        actor = _actor_scope(src)
         if edge_type == "READS":
-            reads_by_actor[src].add(dst)
+            reads_by_actor[actor].add(dst)
         elif edge_type == "WRITES":
-            writes_by_actor[src].add(dst)
+            writes_by_actor[actor].add(dst)
 
     flows: set[TableFlow] = set()
     for actor, read_tables in reads_by_actor.items():
