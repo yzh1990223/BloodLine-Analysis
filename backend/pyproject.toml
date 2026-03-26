@@ -1,0 +1,16 @@
+[project]
+name = "bloodline-api"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi",
+  "uvicorn",
+  "sqlalchemy",
+  "pydantic",
+  "alembic",
+  "sqlglot",
+  "pymysql",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "httpx"]
