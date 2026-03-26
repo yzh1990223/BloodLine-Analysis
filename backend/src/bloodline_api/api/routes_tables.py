@@ -24,4 +24,21 @@ def search_tables(q: str = Query(default=""), db: Session = Depends(get_db)) -> 
 @router.get("/tables/{table_key:path}/lineage")
 def table_lineage(table_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
     lineage = lineage_query_service.get_table_lineage(db, table_key)
-    return lineage or {"table": None, "upstream_tables": [], "downstream_tables": []}
+    return lineage or {
+        "table": None,
+        "upstream_tables": [],
+        "downstream_tables": [],
+        "related_objects": {"jobs": [], "java_modules": [], "transformations": []},
+    }
+
+
+@router.get("/tables/{table_key:path}/impact")
+def table_impact(table_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    impact = lineage_query_service.get_table_impact(db, table_key)
+    return impact or {
+        "table": None,
+        "upstream_tables": [],
+        "downstream_tables": [],
+        "impacted_tables": [],
+        "related_objects": {"jobs": [], "java_modules": [], "transformations": []},
+    }

@@ -16,12 +16,10 @@ router = APIRouter()
 def list_jobs(db: Session = Depends(get_db)) -> dict[str, list[dict[str, object]]]:
     items = [
         {
-            "id": scan_run.id,
-            "status": scan_run.status,
-            "started_at": scan_run.started_at,
-            "finished_at": scan_run.finished_at,
-            "created_at": scan_run.created_at,
+            "id": job_node.id,
+            "key": job_node.key,
+            "name": job_node.name,
         }
-        for scan_run in lineage_query_service.list_scan_runs(db)
+        for job_node in lineage_query_service.list_jobs(db)
     ]
     return {"items": items}

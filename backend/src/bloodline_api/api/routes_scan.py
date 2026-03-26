@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
 from bloodline_api.db import get_db
-from bloodline_api.models import ScanRun
+from bloodline_api.services.lineage_query import lineage_query_service
 
 
 router = APIRouter()
@@ -23,10 +23,12 @@ class ScanRequest(BaseModel):
 
 @router.post("/scan", status_code=202)
 def create_scan(request: ScanRequest | None = None, db: Session = Depends(get_db)) -> dict[str, object]:
-    scan_run = ScanRun(status="queued")
-    db.add(scan_run)
-    db.commit()
-    db.refresh(scan_run)
+    scan_run = lineage_query_service.scan_from_inputs(
+        db,
+        repo_path=None if request is None else request.repo_path,
+        java_source_root=None if request is None else request.java_source_root,
+        mysql_dsn=None if request is None else request.mysql_dsn,
+    )
     return {
         "scan_run_id": scan_run.id,
         "status": scan_run.status,
