@@ -35,12 +35,11 @@ class NodeBase(ApiModel):
 
 
 class NodeCreate(NodeBase):
-    scan_run_id: int | None = None
+    pass
 
 
 class NodeRead(NodeBase):
     id: int
-    scan_run_id: int | None = None
     created_at: datetime | None = None
 
 
@@ -53,10 +52,9 @@ class EdgeBase(ApiModel):
 
 
 class EdgeCreate(EdgeBase):
-    scan_run_id: int | None = None
+    pass
 
 
 class EdgeRead(EdgeBase):
     id: int
-    scan_run_id: int | None = None
     created_at: datetime | None = None

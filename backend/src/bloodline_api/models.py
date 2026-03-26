@@ -26,15 +26,11 @@ class ScanRun(Base):
         server_default=func.now(),
     )
 
-    nodes: Mapped[list["Node"]] = relationship(back_populates="scan_run", cascade="all, delete-orphan")
-    edges: Mapped[list["Edge"]] = relationship(back_populates="scan_run", cascade="all, delete-orphan")
-
 
 class Node(Base):
     __tablename__ = "nodes"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    scan_run_id: Mapped[int | None] = mapped_column(ForeignKey("scan_runs.id"), nullable=True, index=True)
     type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     key: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -44,17 +40,13 @@ class Node(Base):
         nullable=False,
         server_default=func.now(),
     )
-
-    scan_run: Mapped[ScanRun | None] = relationship(back_populates="nodes")
     outgoing_edges: Mapped[list["Edge"]] = relationship(
         back_populates="source_node",
         foreign_keys="Edge.src_node_id",
-        cascade="all, delete-orphan",
     )
     incoming_edges: Mapped[list["Edge"]] = relationship(
         back_populates="target_node",
         foreign_keys="Edge.dst_node_id",
-        cascade="all, delete-orphan",
     )
 
 
@@ -62,7 +54,6 @@ class Edge(Base):
     __tablename__ = "edges"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    scan_run_id: Mapped[int | None] = mapped_column(ForeignKey("scan_runs.id"), nullable=True, index=True)
     type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     src_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=False, index=True)
     dst_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=False, index=True)
@@ -73,7 +64,5 @@ class Edge(Base):
         nullable=False,
         server_default=func.now(),
     )
-
-    scan_run: Mapped[ScanRun | None] = relationship(back_populates="edges")
     source_node: Mapped[Node] = relationship(back_populates="outgoing_edges", foreign_keys=[src_node_id])
     target_node: Mapped[Node] = relationship(back_populates="incoming_edges", foreign_keys=[dst_node_id])
