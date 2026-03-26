@@ -36,6 +36,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_nodes_scan_run_id", "nodes", ["scan_run_id"])
     op.create_index("ix_nodes_type", "nodes", ["type"])
+    op.create_index("ix_nodes_key", "nodes", ["key"], unique=True)
 
     op.create_table(
         "edges",
@@ -61,6 +62,7 @@ def downgrade() -> None:
     op.drop_index("ix_edges_scan_run_id", table_name="edges")
     op.drop_table("edges")
 
+    op.drop_index("ix_nodes_key", table_name="nodes")
     op.drop_index("ix_nodes_type", table_name="nodes")
     op.drop_index("ix_nodes_scan_run_id", table_name="nodes")
     op.drop_table("nodes")
