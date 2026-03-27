@@ -10,6 +10,13 @@ def test_java_sql_parser_extracts_reads_and_writes():
     assert result.module_name == "UserOrderDao"
     assert sorted(result.read_tables) == ["dm.user_order_summary", "ods.orders"]
     assert sorted(result.write_tables) == ["app.order_dashboard", "dm.user_order_summary"]
+    assert [
+        (statement.read_tables, statement.write_tables) for statement in result.statements
+    ] == [
+        (["ods.orders"], []),
+        (["ods.orders"], ["dm.user_order_summary"]),
+        (["dm.user_order_summary"], ["app.order_dashboard"]),
+    ]
 
 
 def test_extract_tables_normalizes_aliased_reads():

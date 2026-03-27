@@ -1,4 +1,4 @@
-"""Parse Java files into module-level table read/write facts."""
+"""Parse Java files into module-level and statement-level table facts."""
 
 from __future__ import annotations
 
@@ -21,6 +21,16 @@ class JavaModuleParseResult:
     module_name: str
     read_tables: list[str]
     write_tables: list[str]
+    statements: list["JavaSqlStatement"]
+
+
+@dataclass(slots=True)
+class JavaSqlStatement:
+    """One SQL-bearing Java string literal preserved as an independent fact scope."""
+
+    statement_id: str
+    read_tables: list[str]
+    write_tables: list[str]
 
 
 class JavaSqlParser:
@@ -32,12 +42,20 @@ class JavaSqlParser:
         source = read_java_source(path)
         reads: set[str] = set()
         writes: set[str] = set()
+        statements: list[JavaSqlStatement] = []
 
-        for match in SQL_STRING_PATTERN.finditer(source):
+        for index, match in enumerate(SQL_STRING_PATTERN.finditer(source)):
             sql = match.group(1).strip()
             if not SQL_START_PATTERN.match(sql):
                 continue
             sql_reads, sql_writes = extract_tables(sql)
+            statements.append(
+                JavaSqlStatement(
+                    statement_id=f"sql_{index}",
+                    read_tables=sorted(sql_reads),
+                    write_tables=sorted(sql_writes),
+                )
+            )
             reads.update(sql_reads)
             writes.update(sql_writes)
 
@@ -45,4 +63,5 @@ class JavaSqlParser:
             module_name=path.stem,
             read_tables=sorted(reads),
             write_tables=sorted(writes),
+            statements=statements,
         )

@@ -22,7 +22,7 @@ export function ImpactPage() {
         }
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Failed to load impact");
+          setError(err instanceof Error ? err.message : "加载影响分析失败");
         }
       }
     }
@@ -40,19 +40,19 @@ export function ImpactPage() {
   return (
     <main className="page">
       <header className="page-header">
-        <p className="eyebrow">Impact Analysis</p>
+        <p className="eyebrow">影响分析</p>
         <h1>{impact?.table?.name ?? decodedTableKey}</h1>
-        <Link to={`/tables/${encodeURIComponent(decodedTableKey)}`}>Back to table detail</Link>
+        <Link to={`/tables/${encodeURIComponent(decodedTableKey)}`}>返回表详情</Link>
       </header>
 
       <section className="panel">
-        <h2>Impacted Tables</h2>
+        <h2>受影响的表</h2>
         <ul className="result-list">
-          {impact?.impacted_tables.length ? null : <li>No downstream impact found.</li>}
+          {impact?.impacted_tables.length ? null : <li>未发现下游影响。</li>}
           {impact?.impacted_tables.map((table) => (
             <li key={`${table.key}-${table.hop}`}>
               <span>{table.name}</span>
-              <small>Hop {table.hop}</small>
+              <small>第 {table.hop} 跳</small>
             </li>
           ))}
         </ul>

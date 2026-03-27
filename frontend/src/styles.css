@@ -74,6 +74,183 @@ a {
   backdrop-filter: blur(8px);
 }
 
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.panel-header h2 {
+  margin: 0;
+}
+
+.panel-subtitle {
+  margin: 8px 0 0;
+  color: #52606d;
+}
+
+.overview-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.overview-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #18445e;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid #d4dee7;
+}
+
+.overview-legend-item::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.overview-legend-source::before {
+  background: #c87a2c;
+}
+
+.overview-legend-middle::before {
+  background: #2f6c85;
+}
+
+.overview-legend-sink::before {
+  background: #1e8f70;
+}
+
+.overview-flow {
+  height: 620px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #d7dce2;
+  background:
+    radial-gradient(circle at top left, rgba(15, 90, 138, 0.1), transparent 38%),
+    radial-gradient(circle at right center, rgba(200, 122, 44, 0.09), transparent 34%),
+    linear-gradient(180deg, #fcfefd 0%, #eef5fa 100%);
+}
+
+.overview-flow .react-flow__pane {
+  cursor: grab;
+}
+
+.overview-flow .react-flow__node {
+  width: 230px;
+  padding: 18px 18px;
+  border-radius: 18px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  border-width: 1px;
+  border-style: solid;
+  box-shadow: 0 18px 36px rgba(18, 52, 77, 0.1);
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.overview-flow .react-flow__node:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 42px rgba(18, 52, 77, 0.16);
+}
+
+.overview-flow .react-flow__node.overview-node {
+  color: #12344d;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.overview-flow .react-flow__node.overview-node-source {
+  border-color: #d7a36b;
+  background: linear-gradient(180deg, #fff7ed 0%, #fffdf9 100%);
+  box-shadow:
+    0 18px 36px rgba(200, 122, 44, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.overview-flow .react-flow__node.overview-node-middle {
+  border-color: #90b6c6;
+  background: linear-gradient(180deg, #f0f8fb 0%, #fcfeff 100%);
+  box-shadow:
+    0 18px 36px rgba(36, 98, 127, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.82);
+}
+
+.overview-flow .react-flow__node.overview-node-sink {
+  border-color: #78bea9;
+  background: linear-gradient(180deg, #ecfbf5 0%, #fbfffd 100%);
+  box-shadow:
+    0 18px 36px rgba(30, 143, 112, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.82);
+}
+
+.overview-flow .react-flow__node.overview-node-muted {
+  opacity: 0.28;
+  filter: saturate(0.75);
+  box-shadow: 0 10px 20px rgba(18, 52, 77, 0.05);
+}
+
+.overview-flow .react-flow__node.overview-node-neighbor {
+  opacity: 1;
+  transform: translateY(-1px);
+  box-shadow: 0 22px 40px rgba(36, 98, 127, 0.18);
+}
+
+.overview-flow .react-flow__node.overview-node-selected {
+  opacity: 1;
+  border-width: 2px;
+  border-color: #12344d;
+  box-shadow:
+    0 0 0 4px rgba(18, 52, 77, 0.12),
+    0 26px 46px rgba(18, 52, 77, 0.2);
+}
+
+.overview-flow .react-flow__edge-path {
+  stroke: #24627f;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 3px 8px rgba(36, 98, 127, 0.16));
+}
+
+.overview-flow .react-flow__edge.overview-edge-muted .react-flow__edge-path {
+  opacity: 0.16;
+  stroke: #8aa6b6;
+  filter: none;
+}
+
+.overview-flow .react-flow__edge.overview-edge-highlighted .react-flow__edge-path {
+  opacity: 1;
+  stroke: #12344d;
+  stroke-width: 3;
+  filter: drop-shadow(0 4px 10px rgba(18, 52, 77, 0.24));
+}
+
+.overview-flow .react-flow__attribution {
+  display: none;
+}
+
+.overview-flow .react-flow__controls {
+  border: 1px solid #d8e1e8;
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 10px 24px rgba(18, 52, 77, 0.12);
+}
+
+.overview-flow .react-flow__controls button {
+  width: 34px;
+  height: 34px;
+  border-bottom: 1px solid #e3ebf1;
+  background: transparent;
+}
+
 .lineage-grid,
 .related-grid {
   display: grid;
@@ -112,5 +289,13 @@ small {
   .lineage-grid,
   .related-grid {
     grid-template-columns: 1fr;
+  }
+
+  .panel-header {
+    flex-direction: column;
+  }
+
+  .overview-flow {
+    height: 520px;
   }
 }

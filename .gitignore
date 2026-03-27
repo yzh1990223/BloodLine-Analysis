@@ -7,3 +7,4 @@ dist/
 coverage/
 *.pyc
 backend/*.db
+.playwright-cli/

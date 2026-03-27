@@ -238,7 +238,6 @@ class LineageQueryService:
                             )
                             table_nodes[table_name] = table_node
                         self._ensure_edge(db, "READS", java_node.id, table_node.id)
-                        fact_edges.append(("READS", java_node.key, table_node.key))
                     for table_name in java_result.write_tables:
                         table_node = table_nodes.get(table_name)
                         if table_node is None:
@@ -247,7 +246,16 @@ class LineageQueryService:
                             )
                             table_nodes[table_name] = table_node
                         self._ensure_edge(db, "WRITES", java_node.id, table_node.id)
-                        fact_edges.append(("WRITES", java_node.key, table_node.key))
+                    # Preserve statement boundaries so unrelated SQL literals in one class
+                    # do not collapse into false direct table-to-table flows.
+                    for statement in java_result.statements:
+                        statement_actor = f"{java_node.key}#{statement.statement_id}"
+                        for table_name in statement.read_tables:
+                            table_node = table_nodes[table_name]
+                            fact_edges.append(("READS", statement_actor, table_node.key))
+                        for table_name in statement.write_tables:
+                            table_node = table_nodes[table_name]
+                            fact_edges.append(("WRITES", statement_actor, table_node.key))
 
         table_flows = build_table_flows(fact_edges)
         for source_key, target_key in table_flows:

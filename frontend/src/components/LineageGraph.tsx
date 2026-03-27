@@ -14,12 +14,12 @@ export function LineageGraph({
   // The MVP uses a textual three-column layout instead of a full graph canvas.
   return (
     <section className="panel">
-      <h2>Lineage</h2>
+      <h2>血缘关系</h2>
       <div className="lineage-grid">
         <div>
-          <h3>Upstream</h3>
+          <h3>上游</h3>
           <ul>
-            {upstreamTables.length === 0 ? <li>None</li> : null}
+            {upstreamTables.length === 0 ? <li>无</li> : null}
             {upstreamTables.map((table) => (
               <li key={table.key}>{table.name}</li>
             ))}
@@ -29,9 +29,9 @@ export function LineageGraph({
           <span>{tableName}</span>
         </div>
         <div>
-          <h3>Downstream</h3>
+          <h3>下游</h3>
           <ul>
-            {downstreamTables.length === 0 ? <li>None</li> : null}
+            {downstreamTables.length === 0 ? <li>无</li> : null}
             {downstreamTables.map((table) => (
               <li key={table.key}>{table.name}</li>
             ))}

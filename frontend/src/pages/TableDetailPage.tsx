@@ -24,7 +24,7 @@ export function TableDetailPage() {
         }
       } catch (err) {
         if (active) {
-          setError(err instanceof Error ? err.message : "Failed to load lineage");
+          setError(err instanceof Error ? err.message : "加载血缘信息失败");
         }
       }
     }
@@ -44,10 +44,10 @@ export function TableDetailPage() {
   return (
     <main className="page">
       <header className="page-header">
-        <p className="eyebrow">Table Detail</p>
+        <p className="eyebrow">表详情</p>
         <h1>{tableName}</h1>
         <Link to={`/tables/${encodeURIComponent(decodedTableKey)}/impact`}>
-          View impact analysis
+          查看影响分析
         </Link>
       </header>
 

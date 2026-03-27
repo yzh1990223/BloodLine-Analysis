@@ -17,12 +17,12 @@ export function SearchBar({ defaultValue = "", onSearch }: SearchBarProps) {
   return (
     <form className="search-bar" onSubmit={handleSubmit}>
       <input
-        aria-label="Search tables"
-        placeholder="Search tables"
+        aria-label="搜索数据表"
+        placeholder="搜索数据表"
         value={value}
         onChange={(event) => setValue(event.target.value)}
       />
-      <button type="submit">Search</button>
+      <button type="submit">搜索</button>
     </form>
   );
 }

@@ -42,10 +42,9 @@ def test_scan_pipeline_persists_table_lineage_and_related_objects(client):
     assert lineage.status_code == 200
     payload = lineage.json()
     assert payload["table"]["key"] == "table:ods.orders"
-    assert any(
-        item["key"] == "table:dm.user_order_summary"
-        for item in payload["downstream_tables"]
-    )
+    downstream_keys = {item["key"] for item in payload["downstream_tables"]}
+    assert "table:dm.user_order_summary" in downstream_keys
+    assert "table:app.order_dashboard" not in downstream_keys
     assert payload["related_objects"]["jobs"][0]["name"] == "daily_summary_job"
     assert payload["related_objects"]["java_modules"][0]["name"] == "UserOrderDao"
 
@@ -64,10 +63,11 @@ def test_table_impact_returns_downstream_tables_and_related_objects(client):
     assert impact.status_code == 200
     payload = impact.json()
     assert payload["table"]["key"] == "table:ods.orders"
-    assert any(
-        item["key"] == "table:dm.user_order_summary"
-        for item in payload["downstream_tables"]
-    )
+    downstream_keys = {item["key"] for item in payload["downstream_tables"]}
+    assert downstream_keys == {"table:dm.user_order_summary"}
+    hop_by_key = {item["key"]: item["hop"] for item in payload["impacted_tables"]}
+    assert hop_by_key["table:dm.user_order_summary"] == 1
+    assert hop_by_key["table:app.order_dashboard"] == 2
     assert payload["related_objects"]["jobs"][0]["name"] == "daily_summary_job"
     assert payload["related_objects"]["java_modules"][0]["name"] == "UserOrderDao"
 
