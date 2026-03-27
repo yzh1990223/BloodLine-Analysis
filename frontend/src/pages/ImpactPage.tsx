@@ -42,7 +42,10 @@ export function ImpactPage() {
       <header className="page-header">
         <p className="eyebrow">影响分析</p>
         <h1>{impact?.table?.name ?? decodedTableKey}</h1>
-        <Link to={`/tables/${encodeURIComponent(decodedTableKey)}`}>返回表详情</Link>
+        <div className="page-actions">
+          <Link to="/">返回总览</Link>
+          <Link to={`/tables/${encodeURIComponent(decodedTableKey)}`}>返回表详情</Link>
+        </div>
       </header>
 
       <section className="panel">

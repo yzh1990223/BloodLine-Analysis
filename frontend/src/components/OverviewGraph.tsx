@@ -41,6 +41,7 @@ export function OverviewGraph({
           fitView
           nodes={nodes}
           edges={edges}
+          zoomOnDoubleClick={false}
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable

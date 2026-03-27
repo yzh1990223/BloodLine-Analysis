@@ -19,6 +19,101 @@ a {
   text-decoration: none;
 }
 
+.app-shell {
+  min-height: 100vh;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(212, 222, 231, 0.85);
+  background: rgba(250, 252, 253, 0.88);
+  backdrop-filter: blur(14px);
+}
+
+.topbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-home {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: #12344d;
+}
+
+.topbar-tag {
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #7a4d26;
+  background: rgba(255, 244, 230, 0.95);
+  border: 1px solid #efd6b4;
+}
+
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.topbar-nav a {
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: #18445e;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid transparent;
+}
+
+.topbar-nav a:hover {
+  border-color: #b8cdda;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.topbar-location {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-self: end;
+  gap: 4px;
+  text-align: right;
+}
+
+.topbar-location-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7b8794;
+}
+
+.topbar-breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  color: #12344d;
+}
+
+.topbar-breadcrumbs a {
+  color: #0f5a8a;
+}
+
+.topbar-breadcrumb-separator {
+  color: #98a6b5;
+}
+
 .page {
   max-width: 1080px;
   margin: 0 auto;
@@ -27,6 +122,30 @@ a {
 
 .page-header {
   margin-bottom: 24px;
+}
+
+.page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.page-actions a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: #18445e;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #d4dee7;
+}
+
+.page-actions a:hover {
+  border-color: #a8c3d2;
+  background: rgba(255, 255, 255, 1);
 }
 
 .eyebrow {
@@ -285,6 +404,21 @@ small {
 }
 
 @media (max-width: 800px) {
+  .topbar {
+    grid-template-columns: 1fr;
+    align-items: flex-start;
+  }
+
+  .topbar-location {
+    align-items: flex-start;
+    justify-self: start;
+    text-align: left;
+  }
+
+  .topbar-breadcrumbs {
+    justify-content: flex-start;
+  }
+
   .search-bar,
   .lineage-grid,
   .related-grid {

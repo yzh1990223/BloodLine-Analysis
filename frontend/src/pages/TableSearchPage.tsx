@@ -79,7 +79,9 @@ export function TableSearchPage() {
         />
       ) : null}
 
-      <SearchBar onSearch={handleSearch} />
+      <div id="table-search">
+        <SearchBar onSearch={handleSearch} />
+      </div>
 
       {loading ? <p>加载中...</p> : null}
       {error ? <p className="error">{error}</p> : null}

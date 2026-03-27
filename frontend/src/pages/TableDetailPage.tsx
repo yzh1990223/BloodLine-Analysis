@@ -46,9 +46,12 @@ export function TableDetailPage() {
       <header className="page-header">
         <p className="eyebrow">表详情</p>
         <h1>{tableName}</h1>
-        <Link to={`/tables/${encodeURIComponent(decodedTableKey)}/impact`}>
-          查看影响分析
-        </Link>
+        <div className="page-actions">
+          <Link to="/">返回总览</Link>
+          <Link to={`/tables/${encodeURIComponent(decodedTableKey)}/impact`}>
+            查看影响分析
+          </Link>
+        </div>
       </header>
 
       <LineageGraph
