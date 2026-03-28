@@ -7,17 +7,19 @@ import { ObjectTypeBadge } from "../components/ObjectTypeBadge";
 import { RelatedObjectsPanel } from "../components/RelatedObjectsPanel";
 import { TableLineageResponse } from "../types";
 
-function collectConnectedLineages(
+function collectDirectionalLineages(
   currentTableKey: string,
   lineages: TableLineageResponse[],
 ): TableLineageResponse[] {
-  const neighbors = new Map<string, Set<string>>();
+  const lineageByKey = new Map<string, TableLineageResponse>();
+  const upstreamByNode = new Map<string, Set<string>>();
+  const downstreamByNode = new Map<string, Set<string>>();
 
-  function ensureNode(key: string) {
-    if (!neighbors.has(key)) {
-      neighbors.set(key, new Set<string>());
+  function ensureDirectionMap(map: Map<string, Set<string>>, key: string) {
+    if (!map.has(key)) {
+      map.set(key, new Set<string>());
     }
-    return neighbors.get(key)!;
+    return map.get(key)!;
   }
 
   for (const lineage of lineages) {
@@ -25,36 +27,145 @@ function collectConnectedLineages(
     if (!tableKey) {
       continue;
     }
-    ensureNode(tableKey);
+    lineageByKey.set(tableKey, lineage);
+    ensureDirectionMap(upstreamByNode, tableKey);
+    ensureDirectionMap(downstreamByNode, tableKey);
 
     for (const upstream of lineage.upstream_tables) {
-      ensureNode(tableKey).add(upstream.key);
-      ensureNode(upstream.key).add(tableKey);
+      ensureDirectionMap(upstreamByNode, tableKey).add(upstream.key);
+      ensureDirectionMap(downstreamByNode, upstream.key).add(tableKey);
     }
 
     for (const downstream of lineage.downstream_tables) {
-      ensureNode(tableKey).add(downstream.key);
-      ensureNode(downstream.key).add(tableKey);
+      ensureDirectionMap(downstreamByNode, tableKey).add(downstream.key);
+      ensureDirectionMap(upstreamByNode, downstream.key).add(tableKey);
     }
   }
 
-  const visited = new Set<string>();
-  const queue = [currentTableKey];
+  function walkDirection(
+    seed: string,
+    adjacency: Map<string, Set<string>>,
+    visited: Set<string>,
+  ) {
+    const queue = [seed];
 
-  while (queue.length > 0) {
-    const key = queue.shift();
-    if (!key || visited.has(key)) {
-      continue;
-    }
-    visited.add(key);
-    for (const next of neighbors.get(key) ?? []) {
-      if (!visited.has(next)) {
-        queue.push(next);
+    while (queue.length > 0) {
+      const key = queue.shift();
+      if (!key || visited.has(key)) {
+        continue;
+      }
+      visited.add(key);
+      for (const next of adjacency.get(key) ?? []) {
+        if (!visited.has(next)) {
+          queue.push(next);
+        }
       }
     }
   }
 
-  return lineages.filter((lineage) => lineage.table && visited.has(lineage.table.key));
+  function collectDistanceMap(
+    seed: string,
+    adjacency: Map<string, Set<string>>,
+  ): Map<string, number> {
+    const distanceByNode = new Map<string, number>();
+    const queue: Array<{ key: string; distance: number }> = [{ key: seed, distance: 0 }];
+
+    while (queue.length > 0) {
+      const current = queue.shift();
+      if (!current || distanceByNode.has(current.key)) {
+        continue;
+      }
+      distanceByNode.set(current.key, current.distance);
+      for (const next of adjacency.get(current.key) ?? []) {
+        if (!distanceByNode.has(next)) {
+          queue.push({ key: next, distance: current.distance + 1 });
+        }
+      }
+    }
+
+    return distanceByNode;
+  }
+
+  const upstreamReachable = new Set<string>();
+  const downstreamReachable = new Set<string>();
+  walkDirection(currentTableKey, upstreamByNode, upstreamReachable);
+  walkDirection(currentTableKey, downstreamByNode, downstreamReachable);
+  const upstreamDistance = collectDistanceMap(currentTableKey, upstreamByNode);
+  const downstreamDistance = collectDistanceMap(currentTableKey, downstreamByNode);
+
+  const allowedKeys = new Set<string>([
+    ...upstreamReachable,
+    ...downstreamReachable,
+    currentTableKey,
+  ]);
+
+  return Array.from(allowedKeys)
+    .map((key) => lineageByKey.get(key))
+    .filter((lineage): lineage is TableLineageResponse => Boolean(lineage))
+    .map((lineage) => {
+      const tableKey = lineage.table?.key;
+      if (!tableKey) {
+        return lineage;
+      }
+
+      return {
+        ...lineage,
+        upstream_tables: lineage.upstream_tables.filter((table) => {
+          if (!allowedKeys.has(table.key)) {
+            return false;
+          }
+
+          const sourceUpstreamDistance = upstreamDistance.get(table.key);
+          const targetUpstreamDistance = upstreamDistance.get(tableKey);
+          if (
+            sourceUpstreamDistance !== undefined &&
+            targetUpstreamDistance !== undefined &&
+            sourceUpstreamDistance === targetUpstreamDistance + 1
+          ) {
+            return true;
+          }
+
+          const sourceDownstreamDistance = downstreamDistance.get(table.key);
+          const targetDownstreamDistance = downstreamDistance.get(tableKey);
+          if (
+            sourceDownstreamDistance !== undefined &&
+            targetDownstreamDistance !== undefined &&
+            sourceDownstreamDistance + 1 === targetDownstreamDistance
+          ) {
+            return true;
+          }
+
+          return false;
+        }),
+        downstream_tables: lineage.downstream_tables.filter((table) => {
+          if (!allowedKeys.has(table.key)) {
+            return false;
+          }
+
+          const sourceUpstreamDistance = upstreamDistance.get(tableKey);
+          const targetUpstreamDistance = upstreamDistance.get(table.key);
+          if (
+            sourceUpstreamDistance !== undefined &&
+            targetUpstreamDistance !== undefined &&
+            sourceUpstreamDistance === targetUpstreamDistance + 1
+          ) {
+            return true;
+          }
+
+          const sourceDownstreamDistance = downstreamDistance.get(tableKey);
+          const targetDownstreamDistance = downstreamDistance.get(table.key);
+          if (
+            sourceDownstreamDistance !== undefined &&
+            targetDownstreamDistance !== undefined &&
+            sourceDownstreamDistance + 1 === targetDownstreamDistance
+          ) {
+            return true;
+          }
+
+          return false;
+        }),
+      };
+    });
 }
 
 export function TableDetailPage() {
@@ -83,7 +194,7 @@ export function TableDetailPage() {
         if (active) {
           setLineage(response);
           setError(null);
-          setChainLineages(collectConnectedLineages(decodedTableKey, allLineages));
+          setChainLineages(collectDirectionalLineages(decodedTableKey, allLineages));
           setChainError(null);
         }
       } catch (err) {

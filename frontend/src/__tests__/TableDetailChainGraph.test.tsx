@@ -30,6 +30,8 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
       { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
       { id: 2, key: "table:dm.user_order_summary", name: "dm.user_order_summary", object_type: "data_table" },
       { id: 3, key: "table:app.order_dashboard", name: "app.order_dashboard", object_type: "data_table" },
+      { id: 4, key: "table:dm.legacy_side_output", name: "dm.legacy_side_output", object_type: "data_table" },
+      { id: 5, key: "table:ods.dashboard_source", name: "ods.dashboard_source", object_type: "data_table" },
     ],
   });
   fetchTableLineage.mockImplementation(async (tableKey: string) => {
@@ -39,6 +41,7 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
         upstream_tables: [],
         downstream_tables: [
           { id: 2, key: "table:dm.user_order_summary", name: "dm.user_order_summary", object_type: "data_table" },
+          { id: 4, key: "table:dm.legacy_side_output", name: "dm.legacy_side_output", object_type: "data_table" },
         ],
         related_objects: { jobs: [], java_modules: [], transformations: [] },
       };
@@ -48,8 +51,29 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
         table: { id: 3, key: "table:app.order_dashboard", name: "app.order_dashboard", object_type: "data_table" },
         upstream_tables: [
           { id: 2, key: "table:dm.user_order_summary", name: "dm.user_order_summary", object_type: "data_table" },
+          { id: 5, key: "table:ods.dashboard_source", name: "ods.dashboard_source", object_type: "data_table" },
         ],
         downstream_tables: [],
+        related_objects: { jobs: [], java_modules: [], transformations: [] },
+      };
+    }
+    if (tableKey === "table:dm.legacy_side_output") {
+      return {
+        table: { id: 4, key: "table:dm.legacy_side_output", name: "dm.legacy_side_output", object_type: "data_table" },
+        upstream_tables: [
+          { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
+        ],
+        downstream_tables: [],
+        related_objects: { jobs: [], java_modules: [], transformations: [] },
+      };
+    }
+    if (tableKey === "table:ods.dashboard_source") {
+      return {
+        table: { id: 5, key: "table:ods.dashboard_source", name: "ods.dashboard_source", object_type: "data_table" },
+        upstream_tables: [],
+        downstream_tables: [
+          { id: 3, key: "table:app.order_dashboard", name: "app.order_dashboard", object_type: "data_table" },
+        ],
         related_objects: { jobs: [], java_modules: [], transformations: [] },
       };
     }
@@ -85,4 +109,6 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
 
   expect(screen.getAllByText("legacy_orders").length).toBeGreaterThan(0);
   expect(screen.getAllByText("app.order_dashboard").length).toBeGreaterThan(0);
+  expect(screen.queryByText("dm.legacy_side_output")).toBeNull();
+  expect(screen.queryByText("ods.dashboard_source")).toBeNull();
 });
