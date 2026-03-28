@@ -1,11 +1,36 @@
 # BloodLine Analysis
 
-一个面向 Kettle `.repo` 文件、Java 源码目录和 MySQL 表级血缘查询的 MVP 工具。
+一个面向 Kettle `.repo` 文件与 Java 源码目录的数据血缘分析工具，当前聚焦对象级与表级血缘、影响分析、闭环分析和 Web 查询体验。
+
+## 当前能力
+
+- 解析 Kettle `.repo` 文件中的 Job、Transformation、数据库输入输出步骤和部分 Job SQL
+- 解析 Java 源码中的静态 SQL，识别读写表关系
+- 统一构建对象级血缘图，并派生 `FLOWS_TO` 表级关系
+- 支持对象类型区分：
+  - `data_table`
+  - `source_table`
+  - `source_file`
+- 提供 Web 页面：
+  - 扫描控制面板
+  - 首页对象概览
+  - 按类型对象列表
+  - 对象详情与完整链路图
+  - 影响分析
+  - 闭环分析
+
+## 当前限制
+
+- `mysql_dsn` 目前仅保留在扫描接口中，尚未真正接入 MySQL 元数据读取
+- 当前只做到对象级 / 表级血缘，未实现字段级血缘
+- 扫描是同步执行的，每次重新扫描都会先清空旧图，再全量重建
+- 动态 SQL、自定义 Step、复杂脚本类处理仍然是部分覆盖
 
 ## 项目结构
 
-- `backend`：FastAPI 服务与 Python 血缘分析流水线
-- `frontend`：基于 React + Vite 的查询界面
+- `backend`：FastAPI 服务、解析器、图构建与查询逻辑
+- `frontend`：React + Vite 页面
+- `docs`：设计、实施、部署和 UAT 文档
 
 ## 启动后端
 
@@ -13,7 +38,14 @@
 cd backend
 UV_CACHE_DIR='/Users/nathan/Documents/GithubProjects/BloodLine Analysis/.uv-cache' uv sync --project . --extra dev
 .venv/bin/alembic upgrade head
-.venv/bin/uvicorn bloodline_api.main:app --reload
+PYTHONPATH=src .venv/bin/uvicorn bloodline_api.main:app --host 127.0.0.1 --port 8000
+```
+
+开发模式也可以用：
+
+```bash
+cd backend
+PYTHONPATH=src .venv/bin/uvicorn bloodline_api.main:app --reload
 ```
 
 ## 启动前端
@@ -24,9 +56,11 @@ npm install
 npm run dev
 ```
 
+前端开发环境默认通过 Vite 代理访问同机后端 `/api`。
+
 ## 样例扫描
 
-启动后端后，使用仓库内置的样例文件触发一次扫描：
+启动后端后，可以使用仓库内置样例触发一次扫描：
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/scan \
@@ -37,14 +71,67 @@ curl -X POST http://127.0.0.1:8000/api/scan \
   }'
 ```
 
-样例数据会构建出这条血缘链路：
+样例会构建出这条链路：
 
 - `ods.orders -> dm.user_order_summary`
 - `dm.user_order_summary -> app.order_dashboard`
 
-常用查询接口：
+也支持只传一个输入源：
 
-- `GET /api/tables/table:dm.user_order_summary/lineage`
-- `GET /api/tables/table:ods.orders/impact`
-- `GET /api/jobs/job:daily_summary_job`
-- `GET /api/java-modules/java_module:UserOrderDao`
+```bash
+curl -X POST http://127.0.0.1:8000/api/scan \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "repo_path": "tests/fixtures/repository.xml"
+  }'
+```
+
+说明：
+
+- `repo_path` 和 `java_source_root` 只要有一个非空即可触发扫描
+- 带空格的路径可以直接传真实路径，后端也兼容 `\ ` 形式的 shell 转义路径
+- `mysql_dsn` 目前不会真正参与解析
+
+## 主要页面
+
+- `/`
+  - 扫描控制面板
+  - 对象概览卡片
+  - 搜索与局部预览
+- `/objects`
+  - 按类型浏览对象
+- `/tables/:tableKey`
+  - 详情页、直接上下游、完整链路图、关联对象高亮
+- `/tables/:tableKey/impact`
+  - 最多 3 跳影响分析
+- `/analysis/cycles`
+  - 多表闭环分组分析
+
+## 常用接口
+
+- `POST /api/scan`
+- `GET /api/scan-runs/latest`
+- `GET /api/tables/search?q=`
+- `GET /api/tables/{table_key}/lineage`
+- `GET /api/tables/{table_key}/impact`
+- `GET /api/analysis/cycles`
+- `GET /api/jobs`
+- `GET /api/jobs/{job_key}`
+- `GET /api/java-modules/{module_key}`
+
+## 开发与验证
+
+后端测试：
+
+```bash
+cd backend
+.venv/bin/pytest -q
+```
+
+前端测试与构建：
+
+```bash
+cd frontend
+npm test
+npm run build
+```

@@ -2,49 +2,50 @@
 
 ## 1. 适用范围
 
-本指南适用于当前 BloodLine Analysis MVP 版本在 UAT 服务器上的部署。
+本文档适用于 `MVP1.1` 版本的 BloodLine Analysis 在 UAT 环境中的部署与联调。
 
-当前版本能力边界：
+当前版本已经支持：
 
-- 支持解析 Kettle `.repo` 文件
-- 支持解析 Java 源码目录中的静态 SQL
-- 支持生成表级血缘关系与影响分析
-- 支持 Web 页面查询、总览图、详情页、影响分析页
+- 解析 Kettle `.repo` 文件
+- 解析 Java 源码目录中的静态 SQL
+- 生成对象级 / 表级血缘和最多 3 跳影响分析
+- 区分 `data_table`、`source_table`、`source_file`
+- 页面化触发扫描、对象浏览、详情查看和闭环分析
 
-当前版本未包含：
+当前版本暂未支持：
 
 - MySQL 元数据直连读取
 - 字段级血缘
 - 异步扫描任务队列
 - 权限与多用户管理
 
-因此，本次 UAT 的重点是验证：
+因此本轮 UAT 的重点仍然是：
 
-- `.repo + Java` 的表级血缘是否正确
-- 图形展示与查询页面是否满足使用预期
+- `.repo + Java` 输入能否稳定产出可用血缘
+- 页面和查询流程是否满足测试使用
+- 真实数据下是否存在异常闭环、自环或明显误连
 
 ## 2. 推荐部署架构
 
 建议采用单机两进程部署：
 
-- 前端：React 构建后的静态文件，由 Nginx 托管
+- 前端：React 构建产物，由 Nginx 托管
 - 后端：FastAPI + Uvicorn
 - 存储：SQLite
 - 反向代理：Nginx
 
 推荐访问路径：
 
-- `/` -> 前端静态页面
-- `/api` -> 后端接口
+- `/` -> 前端静态站点
+- `/api` -> 后端 API
 
 ## 3. 环境要求
-
-建议服务器环境：
 
 - Linux x86_64
 - Python 3.12 及以上
 - Node.js 18 及以上
 - Nginx 1.20 及以上
+- `uv` 可用
 
 推荐目录：
 
@@ -62,7 +63,7 @@ git clone <你的仓库地址> bloodline-analysis
 cd /opt/bloodline-analysis
 ```
 
-如果仓库已存在，则更新：
+更新仓库：
 
 ```bash
 cd /opt/bloodline-analysis
@@ -73,16 +74,12 @@ git pull origin main
 
 ### 5.1 安装依赖
 
-项目后端当前使用 `uv` 管理 Python 环境，推荐按以下方式安装：
-
 ```bash
 cd /opt/bloodline-analysis/backend
 uv sync --project . --extra dev
 ```
 
 ### 5.2 初始化数据库
-
-当前默认使用本地 SQLite：
 
 ```bash
 cd /opt/bloodline-analysis/backend
@@ -98,9 +95,13 @@ PYTHONPATH=src \
 .venv/bin/uvicorn bloodline_api.main:app --host 127.0.0.1 --port 8000
 ```
 
-### 5.4 systemd 部署方式
+说明：
 
-创建文件：
+- 当前扫描是同步执行
+- 每次扫描都会先清空旧图，再全量重建
+- `mysql_dsn` 当前不会真正参与元数据读取
+
+### 5.4 systemd 部署方式
 
 `/etc/systemd/system/bloodline-api.service`
 
@@ -123,7 +124,7 @@ Group=www-data
 WantedBy=multi-user.target
 ```
 
-启用并启动：
+启用：
 
 ```bash
 sudo systemctl daemon-reload
@@ -147,15 +148,13 @@ npm install
 npm run build
 ```
 
-构建产物输出目录：
+构建目录：
 
 ```bash
 /opt/bloodline-analysis/frontend/dist
 ```
 
 ## 7. Nginx 配置
-
-创建配置文件：
 
 `/etc/nginx/conf.d/bloodline.conf`
 
@@ -182,7 +181,7 @@ server {
 }
 ```
 
-校验并重载：
+重载：
 
 ```bash
 sudo nginx -t
@@ -191,12 +190,12 @@ sudo systemctl reload nginx
 
 ## 8. UAT 数据准备
 
-当前版本不读取 MySQL 元数据，因此 UAT 需要准备以下输入：
+当前版本只真正消费以下输入：
 
-- 一份 `.repo` 文件
-- 一份 Java 源码目录
+- `.repo` 文件
+- Java 源码目录
 
-建议将 UAT 数据统一放在服务器固定目录下，例如：
+建议放在服务器固定目录，例如：
 
 ```bash
 /data/bloodline-uat/repo/merged.repo
@@ -205,23 +204,15 @@ sudo systemctl reload nginx
 
 要求：
 
-- `bloodline-api` 运行用户对上述目录有读取权限
-- 路径必须是服务器本机可访问路径
+- 运行后端的系统用户对上述路径有读取权限
+- 路径必须是服务器本地路径
+- `repo_path` 与 `java_source_root` 至少提供一个
 
 ## 9. 触发扫描
 
-后端启动后，调用扫描接口：
+### 9.1 通过接口触发
 
-```bash
-curl -X POST http://127.0.0.1:8000/api/scan \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "repo_path": "/data/bloodline-uat/repo/merged.repo",
-    "java_source_root": "/data/bloodline-uat/java-src"
-  }'
-```
-
-如果通过 Nginx 域名访问：
+同时传两类输入：
 
 ```bash
 curl -X POST http://your-uat-domain/api/scan \
@@ -232,90 +223,112 @@ curl -X POST http://your-uat-domain/api/scan \
   }'
 ```
 
+只传 `.repo`：
+
+```bash
+curl -X POST http://your-uat-domain/api/scan \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "repo_path": "/data/bloodline-uat/repo/merged.repo"
+  }'
+```
+
 成功返回示例：
 
 ```json
 {
-  "scan_run_id": 1,
+  "scan_run_id": 12,
   "status": "completed",
   "inputs": {
-    "repo_path": "/data/bloodline-uat/repo/merged.repo",
-    "java_source_root": "/data/bloodline-uat/java-src"
+    "repo_path": "/data/bloodline-uat/repo/merged.repo"
   }
 }
 ```
 
-## 10. 健康检查与验证
+### 9.2 通过页面触发
 
-### 10.1 接口检查
+首页有“扫描控制面板”，支持：
+
+- 查看最近一次扫描状态
+- 点击“重新扫描解析”
+- 展开“高级配置”填写：
+  - `Repo 文件路径`
+  - `Java 源码目录`
+  - `MySQL DSN（预留）`
+
+注意：
+
+- 两个输入路径至少填写一个
+- 路径中如果包含空格，后端兼容 shell 风格的 `\ ` 转义
+
+## 10. 健康检查
+
+### 10.1 后端接口
 
 ```bash
 curl http://127.0.0.1:8000/api/tables/search
+curl http://127.0.0.1:8000/api/scan-runs/latest
+curl http://127.0.0.1:8000/api/analysis/cycles
 ```
 
-### 10.2 页面检查
+### 10.2 前端页面
 
-打开：
+确认以下路径可打开：
 
-```text
-http://your-uat-domain/
-```
+- `/`
+- `/objects`
+- `/analysis/cycles`
 
-检查内容：
+### 10.3 关键功能检查
 
-- 首页能正常打开
-- 顶部导航栏正常显示
-- 总览图能加载
-- 单击节点高亮直接上下游
-- 双击节点进入详情页
-- 详情页和影响分析页的面包屑、返回按钮正常
+- 首页扫描控制面板可加载
+- 首页对象概览卡片有数据
+- 点击对象概览卡片能进入对象列表
+- 对象详情页能显示完整链路图
+- 闭环分析页能显示闭环组列表
 
-## 11. 发布与回滚建议
+## 11. 常用接口清单
 
-### 发布
+- `POST /api/scan`
+- `GET /api/scan-runs/latest`
+- `GET /api/tables/search?q=`
+- `GET /api/tables/{table_key}/lineage`
+- `GET /api/tables/{table_key}/impact`
+- `GET /api/analysis/cycles`
+- `GET /api/jobs`
+- `GET /api/jobs/{job_key}`
+- `GET /api/java-modules/{module_key}`
 
-```bash
-cd /opt/bloodline-analysis
-git pull origin main
+## 12. 问题排查建议
 
-cd backend
-uv sync --project . --extra dev
-.venv/bin/alembic upgrade head
-sudo systemctl restart bloodline-api
+### 12.1 扫描按钮报错
 
-cd ../frontend
-npm install
-npm run build
-sudo systemctl reload nginx
-```
+优先检查：
 
-### 回滚
+- 后端进程是否仍在运行
+- 输入路径是否为服务器本地真实路径
+- 服务进程是否有读权限
 
-```bash
-cd /opt/bloodline-analysis
-git checkout <旧版本commit>
+### 12.2 页面数据和接口不一致
 
-cd backend
-uv sync --project . --extra dev
-sudo systemctl restart bloodline-api
+优先检查：
 
-cd ../frontend
-npm run build
-sudo systemctl reload nginx
-```
+- 前端是否连到正确的后端地址
+- 后端是否已重启到最新代码
+- 最近一次扫描是否成功完成
 
-## 12. 已知限制
+### 12.3 闭环分析为空
 
-- 当前版本的 `mysql_dsn` 参数尚未接入真实逻辑
-- 目前血缘图只覆盖表级关系
-- 扫描请求是同步执行，大文件场景下会占用请求时间
-- SQLite 适合 UAT，不适合高并发正式环境
+优先检查：
 
-## 13. UAT 阶段建议
+- 本次扫描是否确实产出了 `FLOWS_TO` 边
+- 数据中是否存在多表闭环
+- 不要把单表自环误认为“闭环组”，当前闭环页只统计至少 2 张表参与的闭环
 
-建议分三步进行：
+## 13. 上线前提示
 
-1. 先用小规模样例数据验证部署链路
-2. 再导入真实脱敏 `.repo + Java` 数据做业务验证
-3. 记录误判和漏判案例，作为下一阶段增强输入
+当前版本适合 UAT 和小范围业务验证，不建议直接作为生产高并发服务使用。主要原因：
 
+- SQLite 仅适合轻量单机场景
+- 扫描为同步执行
+- MySQL 元数据和字段级血缘尚未接入

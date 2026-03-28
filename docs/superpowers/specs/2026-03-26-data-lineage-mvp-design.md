@@ -1,389 +1,476 @@
 # 数据血缘分析工具 MVP 设计
 
+> 本文档最初用于定义 MVP 范围。当前已按 `MVP1.1` 的实际落地结果更新，既保留设计意图，也反映当前代码中的真实边界。
+
 ## 1. 背景与目标
 
-目标是为一个已稳定运行的成熟系统构建一个数据血缘分析 MVP。被分析对象的技术栈为：
+目标是为一个成熟运行系统构建数据血缘分析工具，分析对象技术栈为：
 
 - MySQL
 - Kettle
 - Java
 
-本工具的第一阶段只解决最核心的问题：打通 `Kettle + Java -> MySQL` 的表级血缘，并支持基础影响分析。
+当前 MVP 的核心目标已经收敛为：
 
-MVP 的输入范围已经明确为：
+- 打通 `Kettle + Java -> 对象级 / 表级血缘`
+- 支持基础影响分析
+- 支持闭环分析
+- 提供可用于 UAT 的 Web 查询与可视化界面
 
-- 融合了全部 `ktr/kjb` 的一个 `.repo` 文件
-- Java 源代码目录
-- 直连 MySQL 读取元数据
+## 2. 当前输入与输出边界
 
-MVP 的输出形态已经明确为：
+### 2.1 当前实际输入
 
-- 一个轻量 Web 页面
-- 支持搜索表、查看上下游、查看涉及的 Kettle 作业和 Java 模块
+- 融合了全部 `ktr/kjb` 的 `.repo` 文件
+- Java 源码目录
+- `mysql_dsn` 作为接口字段保留，但尚未真正接入元数据解析
 
-MVP 的实现方式已经明确为：
+### 2.2 当前实际输出
 
-- Python 为主
-- 前后端分离
-- 逻辑上拆模块，部署上单体运行
+- 首页扫描控制面板
+- 首页对象概览、搜索与局部预览
+- 对象列表页
+- 对象详情页
+- 影响分析页
+- 闭环分析页
 
-## 2. 成功标准
+## 3. 当前成功标准
 
-MVP 完成后，应满足以下标准：
+截至 `MVP1.1`，当前版本已满足：
 
-1. 能导入并解析 `.repo` 文件中的主要 Job、Transformation、Step 关系。
+1. 能解析 `.repo` 文件中的主要 Job、Transformation、数据库输入输出步骤，以及部分 Job SQL。
 2. 能扫描 Java 源码目录并识别主要静态 SQL 的读写表。
-3. 能连接 MySQL 获取表和字段元数据，并用于表名归一化与页面展示。
-4. 能围绕任意一张表展示其直接上游表与直接下游表。
-5. 能展示与该表相关的 Kettle Job、Transformation、Step 和 Java 模块。
-6. 能执行基础影响分析，即从某张表出发查看其影响到的表、作业和模块。
+3. 能将来源对象区分为 `data_table`、`source_table`、`source_file`。
+4. 能围绕任意对象展示其直接上游和直接下游对象。
+5. 能展示与该对象相关的 Job、Transformation 和 Java 模块。
+6. 能执行最多 3 跳的下游影响分析。
+7. 能识别至少 2 张表参与的闭环组并在页面中展示。
 
-MVP 不要求：
+当前版本尚未满足：
 
+- MySQL 元数据直连读取
 - 字段级血缘
-- 实时采集
-- 调度联动
+- 异步扫描
 - 权限体系
 - 多环境对比
-- 对复杂动态 SQL 的完整还原
 
-## 3. 总体方案
+## 4. 总体方案
 
-采用“插件式多解析器 + 统一图模型”的架构方向，但以 MVP 的节奏推进。
+整体仍采用“多解析器 + 统一图模型”的思路，但实现上已经偏向轻量务实：
 
-整体思路如下：
+1. 从 `.repo` 与 Java 源码提取事实边。
+2. 将不同来源对象统一为图中的节点和边。
+3. 通过关系库存储图实体。
+4. 派生 `FLOWS_TO` 关系用于对象级 / 表级查询。
+5. 通过 FastAPI 提供查询 API。
+6. 通过 React 页面提供查询、分析与可视化。
 
-1. 分别从 `.repo`、Java 源码目录和 MySQL 提取原始事实。
-2. 将这些事实统一映射到同一套血缘图模型。
-3. 将图模型持久化到关系库存储中。
-4. 通过 API 提供查询能力。
-5. 通过轻量前端页面完成搜索、血缘查看和影响分析。
+部署上保持单体部署、模块可拆：
 
-部署形态采用“单体部署、模块可拆”：
+- 一个 Python 后端服务
+- 一个 React 前端
+- 默认 SQLite 持久化
 
-- 代码结构拆分为多个独立模块
-- 运行时先作为一个 Python 后端服务启动
-- 后续如解析量、并发或团队协作需要，再把解析器拆为独立 worker 或服务
+## 5. 模块边界
 
-## 4. 模块边界
+### 5.1 Repo 解析器
 
-### 4.1 Repo 解析器
-
-职责：
-
-- 解析融合后的 `.repo` 文件
-- 提取 Job、Transformation、Step 的结构关系
-- 提取 Job 调用 Job、Job 调用 Transformation 的关系
-- 识别和数据库交互的关键 Step
-- 提取 SQL 类 Step 中涉及的表
-
-MVP 重点覆盖：
+当前重点覆盖：
 
 - Job 与 Transformation 的调用关系
-- Step 的主要顺序和依赖关系
-- 常见数据库输入输出类 Step
-- SQL 脚本类 Step 中直接出现的表名
+- `TableInput`
+- `TableOutput`
+- `ExecSQL`
+- `InsertUpdate`
+- `AccessInput`
+- `ExcelInput`
+- 部分 Job SQL
 
-MVP 暂不重点覆盖：
+当前仍弱覆盖或未覆盖：
 
 - 自定义插件 Step
-- 依赖复杂运行时变量才能解析出的表名
-- 字段级映射关系
+- 复杂脚本 Step
+- 高度依赖运行时变量的目标表
+- 字段级映射
 
-### 4.2 Java 解析器
+### 5.2 Java 解析器
 
-职责：
+当前重点覆盖：
 
-- 扫描 Java 源码目录
-- 提取类或文件级别的 SQL 归属
-- 识别 Java 模块与 MySQL 表之间的读写关系
+- JDBC / 模板类静态 SQL
+- MyBatis 或硬编码 SQL
+- 可还原的简单字符串 SQL
 
-MVP 重点覆盖：
+当前仍弱覆盖：
 
-- JDBC 模板
-- MyBatis 显式 SQL
-- JPA 原生 SQL
-- 硬编码 SQL 字符串
-- 可以还原的字符串拼接 SQL
-
-MVP 暂不重点覆盖：
-
-- 高度动态化的 SQL 拼接
+- 高动态 SQL
 - ORM 自动生成 SQL 的完整还原
-- 方法级、参数级和字段级链路
+- 方法级、字段级链路
 
-### 4.3 元数据加载器
+### 5.3 元数据加载器
 
-职责：
+当前状态：
 
-- 连接 MySQL
-- 拉取数据库、表、字段、视图等元数据
-- 为解析结果做表名归一化和校验
-- 为前端展示提供基础信息
+- 设计中预留
+- 接口中保留 `mysql_dsn`
+- 尚未真正接入 MySQL 元数据加载能力
 
-MVP 重点读取：
+### 5.4 统一图模型
 
-- 库表清单
-- 字段清单
-- 视图定义（可选）
-- 表注释和字段注释
+当前项目真正依赖的是统一图模型，它负责：
 
-### 4.4 统一血缘图模型
+- 承载对象节点和技术对象节点
+- 区分事实边与推导边
+- 支撑搜索、详情、影响分析和闭环分析
 
-职责：
+## 6. 图模型设计
 
-- 将 Kettle、Java、MySQL 三类来源统一成节点和边
-- 区分“原始事实”和“推导结果”
-- 支撑前端查询和影响分析
+### 6.1 当前节点类型
 
-这是整个 MVP 的核心抽象层。
+- `data_object`
+  - 细分对象类型保存在 `object_type`
+- `job`
+- `transformation`
+- `java_module`
 
-## 5. 图模型设计
+### 6.2 当前对象类型
 
-### 5.1 节点类型
+- `data_table`
+- `source_table`
+- `source_file`
+- `table_view`
+  - 目前仅为预留类型，当前实现中尚未稳定产出
 
-- `DataSource`
-  - 表示一个逻辑数据源
-  - 用于区分不同 MySQL 连接或实例
-
-- `Table`
-  - 表示数据库表
-  - 唯一标识建议采用 `instance.database.table`
-
-- `KettleJob`
-  - 表示 Kettle Job
-
-- `KettleTransformation`
-  - 表示 Kettle Transformation
-
-- `KettleStep`
-  - 表示 Transformation 内部的具体 Step
-
-- `JavaModule`
-  - 表示 Java 模块
-  - MVP 先按类名、文件路径或 mapper 文件归属建模
-
-### 5.2 边类型
-
-- `CONTAINS`
-  - `KettleJob -> KettleTransformation`
-  - `KettleTransformation -> KettleStep`
+### 6.3 当前边类型
 
 - `CALLS`
-  - `KettleJob -> KettleJob`
-  - `KettleJob -> KettleTransformation`
-
 - `READS`
-  - `KettleStep -> Table`
-  - `JavaModule -> Table`
-
 - `WRITES`
-  - `KettleStep -> Table`
-  - `JavaModule -> Table`
-
 - `FLOWS_TO`
-  - `Table -> Table`
-  - 表示推导出的表级血缘边
 
-### 5.3 事实边与推导边
+### 6.4 事实边与推导边
 
-必须将“事实边”和“推导边”分开存储：
+当前实现仍坚持分离：
 
 - 事实边：
   - `CALLS`
   - `READS`
   - `WRITES`
-  - `CONTAINS`
-
 - 推导边：
   - `FLOWS_TO`
 
-原因如下：
+这使得：
 
-1. 方便调试错误来源。
-2. 方便后续优化推导规则而不破坏原始采集结果。
-3. 方便将来增加字段级血缘时复用底层事实。
+- 可以单独调试解析问题
+- 可以复算 `FLOWS_TO`
+- 可以对闭环、自环做二次分析
 
-## 6. 血缘推导规则
+## 7. 当前推导规则
 
-MVP 仅生成表级血缘。
+MVP 当前只生成对象级 / 表级 `FLOWS_TO`。
 
-推导规则建议如下：
+实际推导原则包括：
 
-1. 如果某个 Kettle Step 读取表 A 并写入表 B，则生成 `A -> B` 的 `FLOWS_TO`。
-2. 如果同一条 Transformation 链路中存在多个 Step，且前序 Step 读取表 A、后序 Step 写入表 B，则在可确认链路连通时生成 `A -> B`。
-3. 如果某个 Java 模块读取表 A 并写入表 B，则生成 `A -> B`。
-4. 如果某张表被 Kettle 写入、又被 Java 模块读取，则保留事实边，不强行推导跨技术边界的二次业务语义，只在查询时展示关联对象。
+1. 同一处理 actor 既读又写时，生成来源对象到目标对象的 `FLOWS_TO`。
+2. Java 解析按语句边界处理，避免同一类中无关 SQL 被错误串成直接流向。
+3. Repo 中的外部来源可被折叠为：
+   - `source_table`
+   - `source_file`
+4. 每次重新扫描前先清空旧图，再全量重建。
 
-MVP 阶段不做复杂语义推理，例如：
+## 8. 当前前端设计
 
-- 多分支汇聚后的字段传播
-- 临时表生命周期分析
-- 动态变量替换后的跨库跨表推理
+### 8.1 首页
 
-## 7. 技术选型
+首页不再默认渲染全量大图，而是强调：
 
-### 7.1 后端
+- 扫描控制面板
+- 对象概览卡片
+- 搜索
+- 局部预览
 
-- `FastAPI`
-  - 提供 REST API
-  - 适合任务触发、查询接口和后续扩展
+这样可以避免大型图首屏拖慢页面。
 
-- `SQLAlchemy`
-  - 管理持久化模型
+### 8.2 对象详情页
 
-- `SQLite`
-  - 作为 MVP 的默认存储
-  - 优点是部署简单、无额外依赖
-  - 模型设计时保留切换 PostgreSQL 的空间
+详情页包含：
 
-- `sqlglot` 或同类 SQL 解析库
-  - 用于提取 SQL 中出现的表
+- 对象基础信息
+- 直接上下游列表
+- 完整链路图
+- 关联对象高亮筛选
 
-- Python XML 解析能力
-  - 用于读取 `.repo` 结构
+### 8.3 影响分析页
 
-### 7.2 前端
+当前展示最多 3 跳下游影响对象。
+
+### 8.4 闭环分析页
+
+当前展示多表闭环组，不展示单表自环组。
+
+## 9. 当前技术选型
+
+### 9.1 后端
+
+- FastAPI
+- SQLAlchemy
+- Alembic
+- SQLite
+- sqlglot
+
+### 9.2 前端
 
 - React
-  - 实现轻量查询页面
+- TypeScript
+- Vite
+- React Router
+- React Flow
 
-- 轻量图展示库
-  - 用于展示表上下游关系
-  - 只需支持小规模关系浏览
+## 10. 当前 SQLite 表设计
 
-## 8. 存储设计
-
-MVP 存储建议使用关系型结构，而不是一开始引入图数据库。
-
-核心原因：
-
-1. MVP 更轻，部署成本低。
-2. 节点和边结构可以自然映射到关系表。
-3. 表级上下游和影响分析在 MVP 阶段可通过递归查询或后端遍历实现。
-4. 后续若确有需要，可迁移到图数据库或双写。
-
-建议最小表结构包括：
+当前实现使用 SQLite 持久化，核心表只有 3 张：
 
 - `scan_runs`
-  - 记录每次扫描任务
-
 - `nodes`
-  - 存储节点
-  - 字段包括：`id`、`type`、`key`、`name`、`payload`
-
 - `edges`
-  - 存储边
-  - 字段包括：`id`、`type`、`src_node_id`、`dst_node_id`、`is_derived`、`payload`
 
-- `artifacts`
-  - 记录解析来源，如 repo 文件、Java 文件、数据源信息
+设计原则是：
 
-## 9. API 设计
+- 用最少表结构承载扫描批次、节点和边
+- 事实边与推导边通过 `edges.is_derived` 区分
+- 业务类型和值更多放在 `type` 与 `payload` 中，保证后续扩展空间
 
-MVP 建议提供以下接口：
+### 10.1 `scan_runs`
 
-- `POST /api/scan`
-  - 触发一次全量扫描
+用于记录每一次扫描任务的执行情况。
 
-- `GET /api/scan/{scan_id}`
-  - 查看扫描状态和统计信息
+主要字段：
 
-- `GET /api/tables/search?q=`
-  - 按表名模糊搜索
+- `id`
+  - 主键，整数
+- `status`
+  - 扫描状态
+  - 非空
+  - 有索引 `ix_scan_runs_status`
+- `started_at`
+  - 扫描开始时间
+- `finished_at`
+  - 扫描结束时间
+- `created_at`
+  - 记录创建时间
+  - 默认值为当前时间
 
-- `GET /api/tables/{table_id}/lineage`
-  - 返回该表的直接上游表、直接下游表、相关 Kettle 对象、相关 Java 模块
+当前用途：
 
-- `GET /api/tables/{table_id}/impact`
-  - 返回从该表出发的影响范围
-  - MVP 支持 1 到 3 跳
+- 首页扫描控制面板展示最近一次扫描状态
+- 后端保留扫描历史记录
+- 注意：当前重新扫描时会清空图数据，但不会清空 `scan_runs`
 
-- `GET /api/jobs/{job_id}`
-  - 返回 Job 的详情和关联对象
+### 10.2 `nodes`
 
-- `GET /api/java-modules/{module_id}`
-  - 返回 Java 模块详情和关联表
+用于存储血缘图中的所有节点。
 
-## 10. 前端页面设计
+主要字段：
 
-MVP 页面只做三类核心视图。
+- `id`
+  - 主键，整数
+- `type`
+  - 节点大类
+  - 非空
+  - 有索引 `ix_nodes_type`
+- `key`
+  - 节点业务唯一键
+  - 非空
+  - 唯一索引 `ix_nodes_key`
+- `name`
+  - 节点显示名称
+  - 非空
+- `payload`
+  - JSON 扩展字段
+  - 默认 `{}` 
+- `created_at`
+  - 创建时间
+  - 默认值为当前时间
 
-### 10.1 搜索页
+当前典型节点包括：
 
-功能：
+- 数据对象节点
+- Job 节点
+- Transformation 节点
+- Java 模块节点
 
-- 输入表名关键字
-- 返回匹配表列表
-- 展示库名、表名、注释等基础信息
+### 10.3 `edges`
 
-### 10.2 表详情页
+用于存储图中的关系边。
 
-功能：
+主要字段：
 
-- 展示表基础信息
-- 展示直接上游表
-- 展示直接下游表
-- 展示相关 Kettle Job、Transformation、Step
-- 展示相关 Java 模块
+- `id`
+  - 主键，整数
+- `type`
+  - 边类型
+  - 非空
+  - 有索引 `ix_edges_type`
+- `src_node_id`
+  - 起点节点 ID
+  - 外键指向 `nodes.id`
+  - 有索引 `ix_edges_src_node_id`
+- `dst_node_id`
+  - 终点节点 ID
+  - 外键指向 `nodes.id`
+  - 有索引 `ix_edges_dst_node_id`
+- `is_derived`
+  - 是否为推导边
+  - `false` 表示事实边
+  - `true` 表示推导边
+- `payload`
+  - JSON 扩展字段
+  - 默认 `{}` 
+- `created_at`
+  - 创建时间
+  - 默认值为当前时间
 
-### 10.3 影响分析页
+当前用途：
 
-功能：
+- `READS / WRITES / CALLS` 存储原始事实
+- `FLOWS_TO` 存储推导后的对象级 / 表级关系
 
-- 从某张表出发
-- 展示向外扩散的影响对象
-- 支持限制跳数
+### 10.4 当前约束与说明
 
-## 11. 非功能性要求
+- 当前没有单独的“码表”或维表
+- 当前没有单独的扫描输入表、任务配置表、异常表
+- 节点和边的业务语义主要靠：
+  - `nodes.type`
+  - `nodes.key`
+  - `nodes.payload`
+  - `edges.type`
+  - `edges.is_derived`
 
-MVP 阶段的非功能要求如下：
+## 11. 当前码值说明
 
-1. 解析过程允许全量扫描，不要求实时增量。
-2. 分析结果允许按扫描批次重建。
-3. 页面优先保证信息清晰，不追求复杂交互。
-4. 系统出现解析失败时，应保留错误信息和未识别对象，以便后续修正规则。
+### 11.1 `scan_runs.status`
 
-## 12. 风险与边界
+当前代码中涉及的状态值包括：
 
-### 12.1 主要风险
+- `pending`
+  - 初始或默认状态
+- `running`
+  - 扫描执行中
+- `completed`
+  - 扫描成功完成
+- `failed`
+  - 扫描失败
+  - 当前前端和接口语义已预留该值，但后端当前主流程里主要落地的是 `running` 和 `completed`
 
-1. `.repo` 的内部结构复杂度可能高于预期，导致部分 Step 难以统一解析。
-2. Java 代码中的动态 SQL 可能导致表识别率不足。
-3. 不同数据源配置下的表名归一化可能出现误合并。
-4. 若 Kettle 链路中依赖大量变量替换，表级推导准确率会下降。
+### 11.2 `nodes.type`
 
-### 12.2 缓解策略
+当前节点大类包括：
 
-1. 优先覆盖主干 Step 类型和主干 SQL 场景。
-2. 统一保留原始解析片段，便于人工核查。
-3. 引入 `DataSource` 维度，避免同名表误合并。
-4. 将无法确定的关系标记为“未归一化”或“低置信度”，避免错误推导污染主图。
+- `data_object`
+  - 数据对象统一节点
+  - 具体属于表、源表还是源文件，要继续看 `payload.object_type`
+- `job`
+  - Kettle Job
+- `transformation`
+  - Kettle Transformation
+- `java_module`
+  - Java 模块
 
-## 13. 演进路径
+### 11.3 `nodes.payload.object_type`
 
-MVP 之后的自然演进方向如下：
+当前对象细分类包括：
 
-1. 增加字段级血缘
-2. 增加复杂动态 SQL 的还原能力
-3. 增加更多 Kettle Step 类型支持
-4. 引入增量扫描与变更比较
-5. 评估是否迁移到 PostgreSQL 或图数据库
-6. 接入调度平台、存储过程、视图展开等更多来源
+- `data_table`
+  - 数据表
+  - 当前最常见的对象类型
+  - 默认对象类型
+- `source_table`
+  - 外部来源表
+  - 例如 AccessInput 这类来源步骤识别出的表对象
+- `source_file`
+  - 外部来源文件
+  - 例如 ExcelInput 识别出的文件对象
+- `table_view`
+  - 预留类型
+  - 当前实现中尚未稳定产出
 
-## 14. 最终结论
+### 11.4 `edges.type`
 
-本项目的 MVP 推荐方案为：
+当前边类型包括：
 
-- 技术路线选择“插件式多解析器 + 统一图模型”
-- 实现栈选择 Python 后端 + 前后端分离
-- 部署方式选择单体部署、模块可拆
-- 输入选择 `.repo` + Java 源码目录 + MySQL 元数据
-- 输出选择轻量 Web 页面
-- 能力边界聚焦于表级血缘和基础影响分析
+- `CALLS`
+  - 调用关系
+  - 例如 `job -> transformation`
+- `READS`
+  - 读取关系
+  - 例如 `job / transformation / java_module -> data_object`
+- `WRITES`
+  - 写入关系
+  - 例如 `job / transformation / java_module -> data_object`
+- `FLOWS_TO`
+  - 推导出的流向关系
+  - 例如 `source_table -> data_table`
+  - 或 `data_table -> data_table`
 
-第一阶段的核心工作不是追求全覆盖，而是先建立一条可验证、可扩展、可调试的主路径：
+### 11.5 `edges.is_derived`
 
-`Repo 解析 -> Java 解析 -> MySQL 元数据归一化 -> 统一图模型 -> 表级血缘推导 -> Web 查询展示`
+- `false`
+  - 事实边
+  - 当前主要对应 `CALLS / READS / WRITES`
+- `true`
+  - 推导边
+  - 当前主要对应 `FLOWS_TO`
 
-只要这条主路径跑通，并能稳定支持搜索、上下游查看和影响分析，这个 MVP 就达到了预期目标。
+### 11.6 `nodes.key` 当前命名规则
+
+当前 `key` 同时承担了业务唯一标识和前端路由参数的作用。
+
+主要规则如下：
+
+- `table:{name}`
+  - `data_table`
+  - 例如 `table:ods.orders`
+- `source_table:{name}`
+  - `source_table`
+- `source_file:{name}`
+  - `source_file`
+- `view:{name}`
+  - `table_view` 预留
+- `job:{name}`
+  - Job 节点
+- `transformation:{name}`
+  - Transformation 节点
+- `java_module:{name}`
+  - Java 模块节点
+
+### 11.7 `payload` 当前常见补充字段
+
+当前 `payload` 不是严格固定结构，但在现有实现中常见字段包括：
+
+- `source`
+  - 节点或边来源
+  - 如 `repo`
+- `object_type`
+  - 仅数据对象节点使用
+- `step`
+  - Repo 中步骤级读写关系的补充信息
+- `entry`
+  - Job SQL 或 Job entry 的补充信息
+
+## 12. 当前已知限制
+
+- `mysql_dsn` 尚未真正接入
+- 扫描同步执行，耗时大时请求会阻塞
+- 仅支持对象级 / 表级血缘
+- 闭环分析仅展示闭环组，不枚举所有具体环路
+- 部分复杂 Kettle Step、动态 SQL 仍然无法完整还原
+
+## 13. 后续演进方向
+
+后续如继续增强，优先级建议为：
+
+1. 接入 MySQL 元数据
+2. 优化大型真实 `.repo` 的覆盖率
+3. 增加闭环组内具体环路展示
+4. 增加异步扫描任务与进度管理
+5. 逐步探索字段级血缘
