@@ -452,6 +452,8 @@ a {
   padding: 10px 12px;
   text-align: center;
   border-radius: 8px;
+  border: 2px solid transparent;
+  box-sizing: border-box;
 }
 
 .detail-overview-flow .detail-lineage-card strong {
@@ -507,6 +509,10 @@ a {
   box-shadow:
     0 0 0 4px rgba(24, 68, 94, 0.14),
     0 16px 30px rgba(24, 68, 94, 0.18);
+}
+
+.detail-overview-flow .react-flow__node.detail-node-selected .detail-lineage-card {
+  border-color: #111827;
 }
 
 .detail-overview-flow .react-flow__node.detail-node-neighbor {
