@@ -3,6 +3,7 @@ export interface TableSummary {
   id: number;
   key: string;
   name: string;
+  object_type?: string;
 }
 
 export interface RelatedObjectSummary {
@@ -34,4 +35,28 @@ export interface TableImpactResponse extends TableLineageResponse {
 
 export interface SearchResponse {
   items: TableSummary[];
+}
+
+export interface ScanRunSummary {
+  id: number;
+  status: string;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string | null;
+}
+
+export interface LatestScanRunResponse {
+  scan_run: ScanRunSummary | null;
+}
+
+export interface ScanRequestPayload {
+  repo_path?: string;
+  java_source_root?: string;
+  mysql_dsn?: string;
+}
+
+export interface CreateScanResponse {
+  scan_run_id: number;
+  status: string;
+  inputs: Record<string, string>;
 }

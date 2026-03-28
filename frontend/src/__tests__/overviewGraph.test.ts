@@ -5,13 +5,19 @@ import { TableLineageResponse } from "../types";
 test("buildOverviewGraph creates unique table nodes and downstream edges", () => {
   const lineages: TableLineageResponse[] = [
     {
-      table: { id: 1, key: "table:ods.orders", name: "ods.orders" },
+      table: {
+        id: 1,
+        key: "table:ods.orders",
+        name: "ods.orders",
+        object_type: "data_table",
+      },
       upstream_tables: [],
       downstream_tables: [
         {
           id: 2,
           key: "table:dm.user_order_summary",
           name: "dm.user_order_summary",
+          object_type: "data_table",
         },
       ],
       related_objects: { jobs: [], java_modules: [], transformations: [] },
@@ -21,13 +27,22 @@ test("buildOverviewGraph creates unique table nodes and downstream edges", () =>
         id: 2,
         key: "table:dm.user_order_summary",
         name: "dm.user_order_summary",
+        object_type: "data_table",
       },
-      upstream_tables: [{ id: 1, key: "table:ods.orders", name: "ods.orders" }],
+      upstream_tables: [
+        {
+          id: 1,
+          key: "table:ods.orders",
+          name: "ods.orders",
+          object_type: "data_table",
+        },
+      ],
       downstream_tables: [
         {
           id: 3,
           key: "table:app.order_dashboard",
           name: "app.order_dashboard",
+          object_type: "data_table",
         },
       ],
       related_objects: { jobs: [], java_modules: [], transformations: [] },
@@ -41,6 +56,9 @@ test("buildOverviewGraph creates unique table nodes and downstream edges", () =>
     "dm.user_order_summary",
     "app.order_dashboard",
   ]);
+  expect(graph.nodes.find((node) => node.id === "table:ods.orders")?.data.objectType).toBe(
+    "data_table",
+  );
   expect(graph.edges.map((edge) => edge.id).sort()).toEqual(
     [
       "table:ods.orders->table:dm.user_order_summary",
@@ -66,13 +84,19 @@ test("buildOverviewGraph creates unique table nodes and downstream edges", () =>
 test("focusOverviewGraph highlights the selected node and its direct neighbors", () => {
   const lineages: TableLineageResponse[] = [
     {
-      table: { id: 1, key: "table:ods.orders", name: "ods.orders" },
+      table: {
+        id: 1,
+        key: "table:ods.orders",
+        name: "ods.orders",
+        object_type: "data_table",
+      },
       upstream_tables: [],
       downstream_tables: [
         {
           id: 2,
           key: "table:dm.user_order_summary",
           name: "dm.user_order_summary",
+          object_type: "data_table",
         },
       ],
       related_objects: { jobs: [], java_modules: [], transformations: [] },
@@ -82,13 +106,22 @@ test("focusOverviewGraph highlights the selected node and its direct neighbors",
         id: 2,
         key: "table:dm.user_order_summary",
         name: "dm.user_order_summary",
+        object_type: "data_table",
       },
-      upstream_tables: [{ id: 1, key: "table:ods.orders", name: "ods.orders" }],
+      upstream_tables: [
+        {
+          id: 1,
+          key: "table:ods.orders",
+          name: "ods.orders",
+          object_type: "data_table",
+        },
+      ],
       downstream_tables: [
         {
           id: 3,
           key: "table:app.order_dashboard",
           name: "app.order_dashboard",
+          object_type: "data_table",
         },
       ],
       related_objects: { jobs: [], java_modules: [], transformations: [] },

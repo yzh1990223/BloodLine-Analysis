@@ -1,14 +1,27 @@
 import { useMemo, useState } from "react";
-import { Background, Controls, ReactFlow } from "reactflow";
+import { Background, Controls, Handle, NodeProps, Position, ReactFlow } from "reactflow";
 import {
+  OverviewNodeData,
   buildOverviewGraph,
   focusOverviewGraph,
 } from "../graph/overviewGraph";
+import { objectTypeLabel } from "./ObjectTypeBadge";
 import { TableLineageResponse } from "../types";
 
 interface OverviewGraphProps {
   lineages: TableLineageResponse[];
   onTableSelect: (tableKey: string) => void;
+}
+
+export function OverviewObjectNode({ data }: NodeProps<OverviewNodeData>) {
+  return (
+    <div className="overview-object-card">
+      <Handle type="target" position={Position.Left} className="overview-node-handle" />
+      <strong>{data.label}</strong>
+      <small>{objectTypeLabel(data.objectType)}</small>
+      <Handle type="source" position={Position.Right} className="overview-node-handle" />
+    </div>
+  );
 }
 
 export function OverviewGraph({
@@ -22,13 +35,14 @@ export function OverviewGraph({
     () => focusOverviewGraph(graph, focusedTableKey),
     [focusedTableKey, graph],
   );
+  const nodeTypes = useMemo(() => ({ overviewObject: OverviewObjectNode }), []);
 
   return (
     <section className="panel">
       <div className="panel-header">
         <div>
-          <h2>全量表级总览</h2>
-          <p className="panel-subtitle">首页默认展示当前已扫描出的所有表级血缘关系。</p>
+          <h2>全量对象总览</h2>
+          <p className="panel-subtitle">首页默认展示当前已扫描出的对象级血缘关系，并标注节点类型。</p>
         </div>
         <div className="overview-legend" aria-label="图例">
           <span className="overview-legend-item overview-legend-source">源表</span>
@@ -41,6 +55,7 @@ export function OverviewGraph({
           fitView
           nodes={nodes}
           edges={edges}
+          nodeTypes={nodeTypes}
           zoomOnDoubleClick={false}
           nodesDraggable={false}
           nodesConnectable={false}

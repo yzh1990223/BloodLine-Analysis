@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchTableImpact } from "../api";
+import { ObjectTypeBadge } from "../components/ObjectTypeBadge";
 import { TableImpactResponse } from "../types";
 
 export function ImpactPage() {
@@ -42,6 +43,7 @@ export function ImpactPage() {
       <header className="page-header">
         <p className="eyebrow">影响分析</p>
         <h1>{impact?.table?.name ?? decodedTableKey}</h1>
+        {impact?.table ? <ObjectTypeBadge objectType={impact.table.object_type} /> : null}
         <div className="page-actions">
           <Link to="/">返回总览</Link>
           <Link to={`/tables/${encodeURIComponent(decodedTableKey)}`}>返回表详情</Link>
@@ -55,6 +57,7 @@ export function ImpactPage() {
           {impact?.impacted_tables.map((table) => (
             <li key={`${table.key}-${table.hop}`}>
               <span>{table.name}</span>
+              <ObjectTypeBadge objectType={table.object_type} />
               <small>第 {table.hop} 跳</small>
             </li>
           ))}

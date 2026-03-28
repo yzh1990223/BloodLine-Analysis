@@ -4,11 +4,23 @@ import { afterEach, expect, test, vi } from "vitest";
 import { ImpactPage } from "../pages/ImpactPage";
 import { TableDetailPage } from "../pages/TableDetailPage";
 
+class ResizeObserverMock {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+vi.stubGlobal("ResizeObserver", ResizeObserverMock);
+
 afterEach(() => {
   cleanup();
 });
 
 vi.mock("../api", () => ({
+  searchTables: () =>
+    Promise.resolve({
+      items: [{ id: 1, key: "table:ods.orders", name: "ods.orders", object_type: "data_table" }],
+    }),
   fetchTableLineage: () =>
     Promise.resolve({
       table: { id: 1, key: "table:ods.orders", name: "ods.orders" },

@@ -1,4 +1,7 @@
 import {
+  CreateScanResponse,
+  LatestScanRunResponse,
+  ScanRequestPayload,
   SearchResponse,
   TableImpactResponse,
   TableLineageResponse,
@@ -7,9 +10,9 @@ import {
 // The frontend talks to the colocated backend by default, but can be pointed elsewhere.
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
-async function requestJson<T>(path: string): Promise<T> {
+async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   // Centralize fetch error handling so pages only deal with domain data.
-  const response = await fetch(`${API_BASE}${path}`);
+  const response = await fetch(`${API_BASE}${path}`, init);
   if (!response.ok) {
     throw new Error(`Request failed: ${response.status}`);
   }
@@ -38,4 +41,20 @@ export function fetchTableImpact(tableKey: string): Promise<TableImpactResponse>
   return requestJson<TableImpactResponse>(
     `/api/tables/${encodeURIComponent(tableKey)}/impact`,
   );
+}
+
+export function fetchLatestScanRun(): Promise<LatestScanRunResponse> {
+  /** Load the most recent scan run for the scan control panel. */
+  return requestJson<LatestScanRunResponse>("/api/scan-runs/latest");
+}
+
+export function createScan(payload: ScanRequestPayload): Promise<CreateScanResponse> {
+  /** Trigger a new scan using the provided manual inputs. */
+  return requestJson<CreateScanResponse>("/api/scan", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
 }

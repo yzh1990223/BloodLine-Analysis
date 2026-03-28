@@ -33,3 +33,15 @@ test("renders breadcrumb location on the table detail route", () => {
   expect(within(breadcrumbs).getByText("表详情")).toBeTruthy();
   expect(within(breadcrumbs).getByText("ods.orders")).toBeTruthy();
 });
+
+test("renders breadcrumb location on the object list route", () => {
+  render(
+    <MemoryRouter initialEntries={["/objects?type=source_table"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  const breadcrumbs = screen.getByLabelText("面包屑");
+  expect(within(breadcrumbs).getByRole("link", { name: "总览" })).toBeTruthy();
+  expect(within(breadcrumbs).getByText("对象列表")).toBeTruthy();
+});

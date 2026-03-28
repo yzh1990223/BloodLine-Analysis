@@ -18,6 +18,12 @@ function useBreadcrumbs() {
       { label: "表搜索" },
     ] satisfies BreadcrumbItem[];
   }
+  if (location.pathname === "/objects") {
+    return [
+      { label: "总览", to: "/" },
+      { label: "对象列表" },
+    ] satisfies BreadcrumbItem[];
+  }
   if (location.pathname.endsWith("/impact") && tableKey) {
     return [
       { label: "总览", to: "/" },

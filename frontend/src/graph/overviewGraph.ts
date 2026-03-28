@@ -5,6 +5,11 @@ export interface OverviewNodeData {
   key: string;
   label: string;
   role: "source" | "middle" | "sink";
+  objectType: string;
+  level: number;
+  sourceHandles?: string[];
+  targetHandles?: string[];
+  nodeHeight?: number;
 }
 
 export interface OverviewGraphElements {
@@ -14,6 +19,15 @@ export interface OverviewGraphElements {
 
 const COLUMN_GAP = 360;
 const ROW_GAP = 140;
+
+interface BuildOverviewGraphOptions {
+  columnGap?: number;
+  rowGap?: number;
+  edgeColor?: string;
+  edgeWidth?: number;
+  separateHandles?: boolean;
+  edgeType?: Edge["type"];
+}
 
 function classifyNodeRole(
   key: string,
@@ -69,8 +83,16 @@ function collectLevelByNode(edgePairs: Array<[string, string]>, nodeKeys: string
 
 export function buildOverviewGraph(
   lineages: TableLineageResponse[],
+  options: BuildOverviewGraphOptions = {},
 ): OverviewGraphElements {
+  const columnGap = options.columnGap ?? COLUMN_GAP;
+  const rowGap = options.rowGap ?? ROW_GAP;
+  const edgeColor = options.edgeColor ?? "#24627f";
+  const edgeWidth = options.edgeWidth ?? 2.2;
+  const separateHandles = options.separateHandles ?? false;
+  const edgeType = options.edgeType ?? "smoothstep";
   const tableNames = new Map<string, string>();
+  const objectTypes = new Map<string, string>();
   const edgePairs = new Set<string>();
   const incomingCount = new Map<string, number>();
   const outgoingCount = new Map<string, number>();
@@ -78,12 +100,15 @@ export function buildOverviewGraph(
   for (const lineage of lineages) {
     if (lineage.table) {
       tableNames.set(lineage.table.key, lineage.table.name);
+      objectTypes.set(lineage.table.key, lineage.table.object_type ?? "data_table");
     }
     for (const upstream of lineage.upstream_tables) {
       tableNames.set(upstream.key, upstream.name);
+      objectTypes.set(upstream.key, upstream.object_type ?? "data_table");
     }
     for (const downstream of lineage.downstream_tables) {
       tableNames.set(downstream.key, downstream.name);
+      objectTypes.set(downstream.key, downstream.object_type ?? "data_table");
       if (lineage.table) {
         const edgeId = `${lineage.table.key}->${downstream.key}`;
         edgePairs.add(edgeId);
@@ -114,6 +139,19 @@ export function buildOverviewGraph(
     keysByLevel.set(level, levelKeys);
   }
 
+  const sortedEdgePairs = Array.from(edgePairs).sort((left, right) => left.localeCompare(right));
+  const sourceHandlesByNode = new Map<string, string[]>();
+  const targetHandlesByNode = new Map<string, string[]>();
+  for (const pair of sortedEdgePairs) {
+    const [source, target] = pair.split("->");
+    const sourceHandles = sourceHandlesByNode.get(source) ?? [];
+    const targetHandles = targetHandlesByNode.get(target) ?? [];
+    sourceHandles.push(`source-${sourceHandles.length}`);
+    targetHandles.push(`target-${targetHandles.length}`);
+    sourceHandlesByNode.set(source, sourceHandles);
+    targetHandlesByNode.set(target, targetHandles);
+  }
+
   const nodes: Node<OverviewNodeData>[] = [];
   for (const [level, keys] of Array.from(keysByLevel.entries()).sort(
     ([left], [right]) => left - right,
@@ -125,41 +163,59 @@ export function buildOverviewGraph(
     });
     keys.forEach((key, index) => {
       const role = classifyNodeRole(key, incomingCount, outgoingCount);
+      const sourceHandles = sourceHandlesByNode.get(key) ?? [];
+      const targetHandles = targetHandlesByNode.get(key) ?? [];
+      const handleCount = Math.max(sourceHandles.length, targetHandles.length, 1);
       nodes.push({
         id: key,
-        type: "default",
-        data: { key, label: tableNames.get(key) ?? key, role },
-        position: { x: level * COLUMN_GAP, y: index * ROW_GAP },
+        type: "overviewObject",
+        data: {
+          key,
+          label: tableNames.get(key) ?? key,
+          role,
+          objectType: objectTypes.get(key) ?? "data_table",
+          level,
+          sourceHandles,
+          targetHandles,
+          nodeHeight: separateHandles ? Math.max(42, 18 + handleCount * 12) : undefined,
+        },
+        position: { x: level * columnGap, y: index * rowGap },
         draggable: false,
         selectable: true,
         connectable: false,
-        className: `overview-node overview-node-${role}`,
+        className: `overview-node overview-node-${role} overview-node-level-${level % 6}`,
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
       });
     });
   }
 
-  const edges: Edge[] = Array.from(edgePairs)
-    .sort((left, right) => left.localeCompare(right))
-    .map((pair) => {
+  const sourceHandleCursor = new Map<string, number>();
+  const targetHandleCursor = new Map<string, number>();
+  const edges: Edge[] = sortedEdgePairs.map((pair) => {
       const [source, target] = pair.split("->");
+      const sourceIndex = sourceHandleCursor.get(source) ?? 0;
+      const targetIndex = targetHandleCursor.get(target) ?? 0;
+      sourceHandleCursor.set(source, sourceIndex + 1);
+      targetHandleCursor.set(target, targetIndex + 1);
       return {
         id: pair,
         source,
         target,
+        sourceHandle: separateHandles ? `source-${sourceIndex}` : undefined,
+        targetHandle: separateHandles ? `target-${targetIndex}` : undefined,
         animated: false,
-        type: "smoothstep",
+        type: edgeType,
         zIndex: 0,
         markerEnd: {
           type: MarkerType.ArrowClosed,
           width: 22,
           height: 22,
-          color: "#24627f",
+          color: edgeColor,
         },
         style: {
-          stroke: "#24627f",
-          strokeWidth: 2.2,
+          stroke: edgeColor,
+          strokeWidth: edgeWidth,
         },
       };
     });

@@ -17,7 +17,12 @@ def search_tables(q: str = Query(default=""), db: Session = Depends(get_db)) -> 
     """Search persisted table nodes by key or display name."""
 
     items = [
-        {"id": node.id, "key": node.key, "name": node.name}
+        {
+            "id": node.id,
+            "key": node.key,
+            "name": node.name,
+            "object_type": node.payload.get("object_type", "data_table"),
+        }
         for node in lineage_query_service.search_tables(db, q)
     ]
     return {"items": items}

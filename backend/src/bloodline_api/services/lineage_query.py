@@ -16,6 +16,8 @@ from bloodline_api.services.graph_builder import build_table_flows
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
+DEFAULT_OBJECT_TYPE = "data_table"
+
 
 def _resolve_input_path(value: str) -> Path:
     """Resolve relative scan inputs against the backend workspace."""
@@ -24,11 +26,39 @@ def _resolve_input_path(value: str) -> Path:
     return path if path.is_absolute() else BACKEND_ROOT / path
 
 
-def _node_payload(node_type: str, source: str | None = None) -> dict[str, Any]:
+def _node_payload(
+    node_type: str,
+    source: str | None = None,
+    *,
+    object_type: str | None = None,
+) -> dict[str, Any]:
     """Build the minimal payload stored on graph nodes in the MVP."""
 
     payload: dict[str, Any] = {"source": source or node_type}
+    if object_type is not None:
+        payload["object_type"] = object_type
     return payload
+
+
+def _object_key(object_type: str, name: str) -> str:
+    """Build stable keys for lineage objects while keeping data-table keys backward-compatible."""
+
+    if object_type == "data_table":
+        return f"table:{name}"
+    if object_type == "table_view":
+        return f"view:{name}"
+    return f"{object_type}:{name}"
+
+
+def _serialize_object(node: Node) -> dict[str, Any]:
+    """Serialize one lineage object with its frontend-visible type label."""
+
+    return {
+        "id": node.id,
+        "key": node.key,
+        "name": node.name,
+        "object_type": node.payload.get("object_type", DEFAULT_OBJECT_TYPE),
+    }
 
 
 class LineageQueryService:
@@ -49,6 +79,29 @@ class LineageQueryService:
             return node
 
         node = Node(type=node_type, key=key, name=name, payload=_node_payload(node_type))
+        db.add(node)
+        db.flush()
+        return node
+
+    def _get_or_create_object_node(self, db: Session, *, name: str, object_type: str) -> Node:
+        """Upsert a lineage object node such as a data table, source table, or source file."""
+
+        key = _object_key(object_type, name)
+        node = db.scalar(select(Node).where(Node.key == key))
+        if node is not None:
+            payload = dict(node.payload or {})
+            if payload.get("object_type") != object_type:
+                payload["object_type"] = object_type
+                node.payload = payload
+                db.flush()
+            return node
+
+        node = Node(
+            type="data_object",
+            key=key,
+            name=name,
+            payload=_node_payload("data_object", source="repo", object_type=object_type),
+        )
         db.add(node)
         db.flush()
         return node
@@ -115,6 +168,8 @@ class LineageQueryService:
                 for job in job_rows:
                     if job.type == "job":
                         job_nodes[job.key] = job
+            elif actor.type == "job":
+                job_nodes[actor.key] = actor
             elif actor.type == "java_module":
                 java_module_nodes[actor.key] = actor
 
@@ -151,7 +206,7 @@ class LineageQueryService:
         db.flush()
 
         fact_edges: list[tuple[str, str, str]] = []
-        table_nodes: dict[str, Node] = {}
+        object_nodes: dict[str, Node] = {}
 
         if repo_path:
             repo_result = RepoParser().parse_file(_resolve_input_path(repo_path))
@@ -178,13 +233,15 @@ class LineageQueryService:
                 transformation_node = transformation_nodes.get(transformation_name)
                 if transformation_node is None:
                     continue
-                for table_name in table_names:
-                    table_node = table_nodes.get(table_name)
+                for object_ref in table_names:
+                    table_node = object_nodes.get(_object_key(object_ref.object_type, object_ref.name))
                     if table_node is None:
-                        table_node = self._get_or_create_node(
-                            db, "table", f"table:{table_name}", table_name
+                        table_node = self._get_or_create_object_node(
+                            db,
+                            name=object_ref.name,
+                            object_type=object_ref.object_type,
                         )
-                        table_nodes[table_name] = table_node
+                        object_nodes[table_node.key] = table_node
                     self._ensure_edge(
                         db,
                         "READS",
@@ -192,22 +249,22 @@ class LineageQueryService:
                         table_node.id,
                         payload={"step": step_key, "source": "repo"},
                     )
-                    fact_edges.append(
-                        ("READS", transformation_node.key, table_node.key)
-                    )
+                    fact_edges.append(("READS", step_key, table_node.key))
 
             for step_key, table_names in repo_result.step_writes.items():
                 transformation_name = step_key.split("::", 1)[0]
                 transformation_node = transformation_nodes.get(transformation_name)
                 if transformation_node is None:
                     continue
-                for table_name in table_names:
-                    table_node = table_nodes.get(table_name)
+                for object_ref in table_names:
+                    table_node = object_nodes.get(_object_key(object_ref.object_type, object_ref.name))
                     if table_node is None:
-                        table_node = self._get_or_create_node(
-                            db, "table", f"table:{table_name}", table_name
+                        table_node = self._get_or_create_object_node(
+                            db,
+                            name=object_ref.name,
+                            object_type=object_ref.object_type,
                         )
-                        table_nodes[table_name] = table_node
+                        object_nodes[table_node.key] = table_node
                     self._ensure_edge(
                         db,
                         "WRITES",
@@ -215,9 +272,53 @@ class LineageQueryService:
                         table_node.id,
                         payload={"step": step_key, "source": "repo"},
                     )
-                    fact_edges.append(
-                        ("WRITES", transformation_node.key, table_node.key)
+                    fact_edges.append(("WRITES", step_key, table_node.key))
+
+            for entry_key, object_refs in repo_result.job_reads.items():
+                job_name = entry_key.split("::", 1)[0]
+                job_node = job_nodes.get(job_name)
+                if job_node is None:
+                    continue
+                for object_ref in object_refs:
+                    table_node = object_nodes.get(_object_key(object_ref.object_type, object_ref.name))
+                    if table_node is None:
+                        table_node = self._get_or_create_object_node(
+                            db,
+                            name=object_ref.name,
+                            object_type=object_ref.object_type,
+                        )
+                        object_nodes[table_node.key] = table_node
+                    self._ensure_edge(
+                        db,
+                        "READS",
+                        job_node.id,
+                        table_node.id,
+                        payload={"entry": entry_key, "source": "repo"},
                     )
+                    fact_edges.append(("READS", entry_key, table_node.key))
+
+            for entry_key, object_refs in repo_result.job_writes.items():
+                job_name = entry_key.split("::", 1)[0]
+                job_node = job_nodes.get(job_name)
+                if job_node is None:
+                    continue
+                for object_ref in object_refs:
+                    table_node = object_nodes.get(_object_key(object_ref.object_type, object_ref.name))
+                    if table_node is None:
+                        table_node = self._get_or_create_object_node(
+                            db,
+                            name=object_ref.name,
+                            object_type=object_ref.object_type,
+                        )
+                        object_nodes[table_node.key] = table_node
+                    self._ensure_edge(
+                        db,
+                        "WRITES",
+                        job_node.id,
+                        table_node.id,
+                        payload={"entry": entry_key, "source": "repo"},
+                    )
+                    fact_edges.append(("WRITES", entry_key, table_node.key))
 
         if java_source_root:
             java_root = _resolve_input_path(java_source_root)
@@ -231,36 +332,38 @@ class LineageQueryService:
                         java_result.module_name,
                     )
                     for table_name in java_result.read_tables:
-                        table_node = table_nodes.get(table_name)
+                        object_key = _object_key("data_table", table_name)
+                        table_node = object_nodes.get(object_key)
                         if table_node is None:
-                            table_node = self._get_or_create_node(
-                                db, "table", f"table:{table_name}", table_name
+                            table_node = self._get_or_create_object_node(
+                                db, name=table_name, object_type="data_table"
                             )
-                            table_nodes[table_name] = table_node
+                            object_nodes[table_node.key] = table_node
                         self._ensure_edge(db, "READS", java_node.id, table_node.id)
                     for table_name in java_result.write_tables:
-                        table_node = table_nodes.get(table_name)
+                        object_key = _object_key("data_table", table_name)
+                        table_node = object_nodes.get(object_key)
                         if table_node is None:
-                            table_node = self._get_or_create_node(
-                                db, "table", f"table:{table_name}", table_name
+                            table_node = self._get_or_create_object_node(
+                                db, name=table_name, object_type="data_table"
                             )
-                            table_nodes[table_name] = table_node
+                            object_nodes[table_node.key] = table_node
                         self._ensure_edge(db, "WRITES", java_node.id, table_node.id)
                     # Preserve statement boundaries so unrelated SQL literals in one class
                     # do not collapse into false direct table-to-table flows.
                     for statement in java_result.statements:
                         statement_actor = f"{java_node.key}#{statement.statement_id}"
                         for table_name in statement.read_tables:
-                            table_node = table_nodes[table_name]
+                            table_node = object_nodes[_object_key("data_table", table_name)]
                             fact_edges.append(("READS", statement_actor, table_node.key))
                         for table_name in statement.write_tables:
-                            table_node = table_nodes[table_name]
+                            table_node = object_nodes[_object_key("data_table", table_name)]
                             fact_edges.append(("WRITES", statement_actor, table_node.key))
 
         table_flows = build_table_flows(fact_edges)
         for source_key, target_key in table_flows:
-            source_table = table_nodes.get(source_key.split("table:", 1)[1])
-            target_table = table_nodes.get(target_key.split("table:", 1)[1])
+            source_table = object_nodes.get(source_key)
+            target_table = object_nodes.get(target_key)
             if source_table is None or target_table is None:
                 continue
             self._ensure_edge(db, "FLOWS_TO", source_table.id, target_table.id, is_derived=True)
@@ -274,7 +377,7 @@ class LineageQueryService:
     def search_tables(self, db: Session, query: str = "") -> list[Node]:
         """Search table nodes by key or name for the frontend search page."""
 
-        stmt = select(Node).where(Node.type == "table")
+        stmt = select(Node).where(Node.type.in_(("table", "data_object")))
         if query:
             pattern = f"%{query}%"
             stmt = stmt.where((Node.key.ilike(pattern)) | (Node.name.ilike(pattern)))
@@ -296,7 +399,7 @@ class LineageQueryService:
     def get_table_lineage(self, db: Session, table_key: str) -> dict[str, Any] | None:
         """Return one table with its direct upstream/downstream neighbors."""
 
-        table = db.scalar(select(Node).where(Node.type == "table", Node.key == table_key))
+        table = db.scalar(select(Node).where(Node.type.in_(("table", "data_object")), Node.key == table_key))
         if table is None:
             return None
 
@@ -316,13 +419,9 @@ class LineageQueryService:
         downstream_tables = list(db.scalars(downstream_stmt).all())
 
         return {
-            "table": {"id": table.id, "key": table.key, "name": table.name},
-            "upstream_tables": [
-                {"id": node.id, "key": node.key, "name": node.name} for node in upstream_tables
-            ],
-            "downstream_tables": [
-                {"id": node.id, "key": node.key, "name": node.name} for node in downstream_tables
-            ],
+            "table": _serialize_object(table),
+            "upstream_tables": [_serialize_object(node) for node in upstream_tables],
+            "downstream_tables": [_serialize_object(node) for node in downstream_tables],
             "related_objects": self._related_objects(db, table),
         }
 
@@ -332,7 +431,7 @@ class LineageQueryService:
         lineage = self.get_table_lineage(db, table_key)
         if lineage is None:
             return None
-        table = db.scalar(select(Node).where(Node.type == "table", Node.key == table_key))
+        table = db.scalar(select(Node).where(Node.type.in_(("table", "data_object")), Node.key == table_key))
         if table is None:
             return None
 
@@ -366,9 +465,15 @@ class LineageQueryService:
                 seen.add(node_id)
                 next_frontier.add(node_id)
                 node = db.get(Node, node_id)
-                if node is not None and node.type == "table":
+                if node is not None and node.type in {"table", "data_object"}:
                     impacted.append(
-                        {"id": node.id, "key": node.key, "name": node.name, "hop": hop}
+                        {
+                            "id": node.id,
+                            "key": node.key,
+                            "name": node.name,
+                            "object_type": node.payload.get("object_type", DEFAULT_OBJECT_TYPE),
+                            "hop": hop,
+                        }
                     )
             frontier = next_frontier
 

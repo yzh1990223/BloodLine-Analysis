@@ -6,14 +6,19 @@ from bloodline_api.models import Node
 
 def test_search_tables_returns_matching_nodes(client, db_session):
     db_session.add(
-        Node(type="table", key="table:ods.orders", name="ods.orders", payload={})
+        Node(
+            type="data_object",
+            key="table:ods.orders",
+            name="ods.orders",
+            payload={"object_type": "data_table"},
+        )
     )
     db_session.add(
         Node(
-            type="table",
+            type="data_object",
             key="table:dm.user_order_summary",
             name="dm.user_order_summary",
-            payload={},
+            payload={"object_type": "data_table"},
         )
     )
     db_session.commit()
@@ -23,6 +28,7 @@ def test_search_tables_returns_matching_nodes(client, db_session):
     assert response.status_code == 200
     items = response.json()["items"]
     assert any(item["key"] == "table:ods.orders" for item in items)
+    assert any(item["object_type"] == "data_table" for item in items)
 
 
 def test_scan_pipeline_persists_table_lineage_and_related_objects(client):
@@ -231,3 +237,95 @@ def test_job_and_java_module_detail_routes_return_compact_payloads(client):
     assert "table:dm.user_order_summary" in read_table_keys
     assert "table:dm.user_order_summary" in write_table_keys
     assert "table:app.order_dashboard" in write_table_keys
+
+
+def test_scan_pipeline_persists_source_node_types_and_job_sql_objects(client, tmp_path):
+    repo_path = tmp_path / "typed_sources.repo.xml"
+    repo_path.write_text(
+        dedent(
+            """
+            <repository>
+              <jobs>
+                <job>
+                  <name>typed_job</name>
+                  <entries>
+                    <entry>
+                      <name>cleanup</name>
+                      <type>SQL</type>
+                      <connection>warehouse</connection>
+                      <sql>truncate table dm.cleanup_target;</sql>
+                    </entry>
+                    <entry>
+                      <name>excel_load</name>
+                      <type>TRANS</type>
+                      <transname>excel_load</transname>
+                    </entry>
+                    <entry>
+                      <name>access_load</name>
+                      <type>TRANS</type>
+                      <transname>access_load</transname>
+                    </entry>
+                  </entries>
+                </job>
+              </jobs>
+              <transformations>
+                <transformation>
+                  <info>
+                    <name>excel_load</name>
+                  </info>
+                  <step>
+                    <name>Excel输入</name>
+                    <type>ExcelInput</type>
+                    <file>
+                      <name>/data/incoming/orders.xlsx</name>
+                      <filemask/>
+                    </file>
+                  </step>
+                  <step>
+                    <name>表输出</name>
+                    <type>TableOutput</type>
+                    <table>stg.orders_excel</table>
+                  </step>
+                </transformation>
+                <transformation>
+                  <info>
+                    <name>access_load</name>
+                  </info>
+                  <step>
+                    <name>Access 输入</name>
+                    <type>AccessInput</type>
+                    <table_name>legacy_orders</table_name>
+                  </step>
+                  <step>
+                    <name>表输出</name>
+                    <type>TableOutput</type>
+                    <table>stg.legacy_orders</table>
+                  </step>
+                </transformation>
+              </transformations>
+            </repository>
+            """
+        ).strip(),
+        encoding="utf-8",
+    )
+
+    response = client.post("/api/scan", json={"repo_path": str(repo_path)})
+
+    assert response.status_code == 202
+
+    file_search = client.get("/api/tables/search", params={"q": "orders.xlsx"})
+    source_file = file_search.json()["items"][0]
+    assert source_file["object_type"] == "source_file"
+
+    source_table_search = client.get("/api/tables/search", params={"q": "legacy_orders"})
+    source_table = next(
+        item for item in source_table_search.json()["items"] if item["object_type"] == "source_table"
+    )
+    assert source_table["name"] == "legacy_orders"
+
+    cleanup_search = client.get("/api/tables/search", params={"q": "cleanup_target"})
+    assert cleanup_search.json()["items"][0]["object_type"] == "data_table"
+
+    lineage = client.get("/api/tables/table:stg.orders_excel/lineage")
+    assert lineage.status_code == 200
+    assert lineage.json()["upstream_tables"][0]["object_type"] == "source_file"

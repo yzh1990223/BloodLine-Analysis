@@ -210,6 +210,172 @@ a {
   color: #52606d;
 }
 
+.scan-panel {
+  background:
+    radial-gradient(circle at top right, rgba(18, 52, 77, 0.06), transparent 34%),
+    rgba(255, 255, 255, 0.88);
+}
+
+.scan-status {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 130px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid #d4dee7;
+  background: rgba(255, 255, 255, 0.9);
+  text-align: right;
+}
+
+.scan-status-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #697586;
+}
+
+.scan-status-已完成 strong {
+  color: #13795b;
+}
+
+.scan-status-运行中 strong {
+  color: #0f5a8a;
+}
+
+.scan-status-失败 strong {
+  color: #b42318;
+}
+
+.scan-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 14px;
+  color: #52606d;
+  font-size: 14px;
+}
+
+.scan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.primary-action,
+.secondary-action {
+  padding: 12px 16px;
+  border-radius: 14px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.primary-action {
+  background: #12344d;
+  color: #fff;
+}
+
+.primary-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.secondary-action {
+  background: rgba(255, 255, 255, 0.9);
+  color: #18445e;
+  border-color: #d4dee7;
+}
+
+.scan-form {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.scan-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #18445e;
+}
+
+.scan-form input {
+  padding: 12px 14px;
+  border: 1px solid #d7dce2;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.overview-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid #d7dce2;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.overview-stat-link {
+  text-decoration: none;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.overview-stat-link:hover {
+  transform: translateY(-2px);
+  border-color: #7da4b8;
+  box-shadow: 0 14px 30px rgba(18, 52, 77, 0.08);
+}
+
+.overview-stat-link:focus-visible {
+  outline: 3px solid rgba(46, 111, 150, 0.25);
+  outline-offset: 3px;
+}
+
+.overview-stat-card span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #697586;
+}
+
+.overview-stat-card strong {
+  font-size: 28px;
+  line-height: 1;
+  color: #12344d;
+}
+
+.object-list {
+  margin-top: 18px;
+}
+
+.object-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.object-list-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.object-list-key {
+  font-size: 13px;
+  color: #697586;
+  word-break: break-all;
+}
+
 .overview-legend {
   display: flex;
   flex-wrap: wrap;
@@ -259,21 +425,161 @@ a {
     linear-gradient(180deg, #fcfefd 0%, #eef5fa 100%);
 }
 
+.detail-overview-flow {
+  height: 680px;
+  border: 1px solid #eceef2;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(252, 253, 255, 0.98) 100%);
+}
+
+.detail-overview-flow .react-flow__pane {
+  cursor: grab;
+}
+
+.detail-overview-flow .react-flow__node {
+  width: 146px;
+  border: 0;
+  border-radius: 8px;
+  box-shadow: 0 8px 18px rgba(31, 41, 55, 0.12);
+  transition: opacity 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+.detail-overview-flow .detail-lineage-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 10px 12px;
+  text-align: center;
+  border-radius: 8px;
+}
+
+.detail-overview-flow .detail-lineage-card strong {
+  display: block;
+  overflow: hidden;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #fff;
+}
+
+.detail-overview-flow .overview-node-handle {
+  opacity: 0;
+  width: 6px;
+  height: 6px;
+  min-width: 6px;
+  min-height: 6px;
+  border: 0;
+  background: transparent;
+}
+
+.detail-overview-flow .detail-node-handle {
+  opacity: 1;
+}
+
+.detail-overview-flow .react-flow__node.overview-node-level-0 .detail-lineage-card {
+  background: linear-gradient(135deg, #ff6d6d 0%, #ff7e79 100%);
+}
+
+.detail-overview-flow .react-flow__node.overview-node-level-1 .detail-lineage-card {
+  background: linear-gradient(135deg, #ff8f2d 0%, #ffa042 100%);
+}
+
+.detail-overview-flow .react-flow__node.overview-node-level-2 .detail-lineage-card {
+  background: linear-gradient(135deg, #65c35a 0%, #78cf68 100%);
+}
+
+.detail-overview-flow .react-flow__node.overview-node-level-3 .detail-lineage-card {
+  background: linear-gradient(135deg, #42bf96 0%, #57caa6 100%);
+}
+
+.detail-overview-flow .react-flow__node.overview-node-level-4 .detail-lineage-card {
+  background: linear-gradient(135deg, #19a0f3 0%, #2db0ff 100%);
+}
+
+.detail-overview-flow .react-flow__node.overview-node-level-5 .detail-lineage-card {
+  background: linear-gradient(135deg, #f2b738 0%, #f6c64d 100%);
+}
+
+.detail-overview-flow .react-flow__node.detail-node-selected {
+  box-shadow:
+    0 0 0 4px rgba(24, 68, 94, 0.14),
+    0 16px 30px rgba(24, 68, 94, 0.18);
+}
+
+.detail-overview-flow .react-flow__node.detail-node-neighbor {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(24, 68, 94, 0.14);
+}
+
+.detail-overview-flow .react-flow__node.detail-node-dim {
+  opacity: 0.34;
+}
+
+.detail-overview-flow .react-flow__edge-path {
+  stroke: #c7cdd6 !important;
+  stroke-width: 1.2 !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: none;
+  transition: opacity 140ms ease, stroke 140ms ease, stroke-width 140ms ease;
+}
+
+.detail-overview-flow .react-flow__edge-path:hover {
+  stroke: #98a2b3 !important;
+}
+
+.detail-overview-flow .react-flow__edge.detail-edge-highlighted .react-flow__edge-path {
+  stroke: #8f9baa !important;
+  stroke-width: 1.6 !important;
+  opacity: 1;
+}
+
+.detail-overview-flow .react-flow__edge.detail-edge-dim .react-flow__edge-path {
+  opacity: 0.18;
+}
+
+.detail-overview-flow .react-flow__controls,
+.detail-overview-flow .react-flow__attribution,
+.detail-overview-flow .react-flow__background {
+  display: none;
+}
+
 .overview-flow .react-flow__pane {
   cursor: grab;
 }
 
 .overview-flow .react-flow__node {
   width: 230px;
-  padding: 18px 18px;
+  padding: 0;
   border-radius: 18px;
-  font-size: 14px;
-  font-weight: 600;
-  text-align: center;
   border-width: 1px;
   border-style: solid;
   box-shadow: 0 18px 36px rgba(18, 52, 77, 0.1);
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.overview-object-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px;
+  text-align: center;
+}
+
+.overview-object-card strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: #12344d;
+}
+
+.overview-object-card small {
+  margin-left: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #52606d;
 }
 
 .overview-flow .react-flow__node:hover {
@@ -379,6 +685,8 @@ a {
 
 .lineage-focus {
   display: flex;
+  flex-direction: column;
+  gap: 10px;
   align-items: center;
   justify-content: center;
   min-height: 120px;
@@ -386,6 +694,65 @@ a {
   background: linear-gradient(135deg, #12344d, #2c7a7b);
   color: #fff;
   font-weight: 700;
+}
+
+.object-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 62px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
+  border: 1px solid transparent;
+}
+
+.object-type-data_table {
+  color: #18445e;
+  background: rgba(232, 243, 249, 0.95);
+  border-color: #bad3e1;
+}
+
+.object-type-source_table {
+  color: #8b5e34;
+  background: rgba(255, 244, 230, 0.95);
+  border-color: #efd6b4;
+}
+
+.object-type-source_file {
+  color: #7a2e65;
+  background: rgba(250, 235, 246, 0.95);
+  border-color: #e7c6dc;
+}
+
+.object-type-table_view {
+  color: #0d6b57;
+  background: rgba(230, 247, 240, 0.95);
+  border-color: #b9e3d1;
+}
+
+.result-list li,
+.lineage-grid li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f5a8a;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.page-header .object-type-badge {
+  margin-top: 10px;
 }
 
 .result-list,
@@ -420,6 +787,8 @@ small {
   }
 
   .search-bar,
+  .scan-form,
+  .overview-stats,
   .lineage-grid,
   .related-grid {
     grid-template-columns: 1fr;
