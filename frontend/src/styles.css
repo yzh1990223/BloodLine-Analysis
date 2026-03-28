@@ -376,6 +376,40 @@ a {
   word-break: break-all;
 }
 
+.object-loop-main {
+  justify-content: space-between;
+}
+
+.self-loop-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(180, 35, 24, 0.08);
+  color: #b42318;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.cycle-group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cycle-group-card {
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid #d7dce2;
+  background: rgba(249, 251, 252, 0.9);
+}
+
+.cycle-group-card h3 {
+  margin: 0;
+}
+
 .overview-legend {
   display: flex;
   flex-wrap: wrap;

@@ -28,6 +28,20 @@ def search_tables(q: str = Query(default=""), db: Session = Depends(get_db)) -> 
     return {"items": items}
 
 
+@router.get("/analysis/self-loops")
+def self_loop_summary(db: Session = Depends(get_db)) -> dict[str, object]:
+    """Return aggregated self-loop counts so the frontend can spotlight suspicious tables."""
+
+    return lineage_query_service.get_self_loop_summary(db)
+
+
+@router.get("/analysis/cycles")
+def cycle_group_summary(db: Session = Depends(get_db)) -> dict[str, object]:
+    """Return grouped multi-table closed loops for analysis pages."""
+
+    return lineage_query_service.get_cycle_group_summary(db)
+
+
 @router.get("/tables/{table_key:path}/lineage")
 def table_lineage(table_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
     """Return direct lineage neighbors and related objects for one table."""

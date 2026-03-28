@@ -1,5 +1,6 @@
 import {
   CreateScanResponse,
+  CycleGroupSummaryResponse,
   LatestScanRunResponse,
   ScanRequestPayload,
   SearchResponse,
@@ -57,4 +58,9 @@ export function createScan(payload: ScanRequestPayload): Promise<CreateScanRespo
     },
     body: JSON.stringify(payload),
   });
+}
+
+export function fetchCycleGroups(): Promise<CycleGroupSummaryResponse> {
+  /** Load grouped multi-table closed loops for the dedicated analysis page. */
+  return requestJson<CycleGroupSummaryResponse>("/api/analysis/cycles");
 }

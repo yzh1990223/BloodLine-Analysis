@@ -25,3 +25,15 @@ def test_latest_scan_run_returns_most_recent_scan_status(client):
     assert body["id"] == scan_response.json()["scan_run_id"]
     assert body["started_at"] is not None
     assert body["finished_at"] is not None
+
+
+def test_scan_accepts_shell_escaped_space_in_repo_path(client):
+    response = client.post(
+        "/api/scan",
+        json={
+            "repo_path": "/Users/nathan/Documents/GithubProjects/BloodLine\\ Analysis/backend/tests/fixtures/sample.repo.xml",
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "completed"

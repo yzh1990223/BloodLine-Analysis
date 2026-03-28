@@ -8,6 +8,7 @@ const fetchTableLineage = vi.fn();
 const fetchLatestScanRun = vi.fn();
 const createScan = vi.fn();
 const fetchTableImpact = vi.fn();
+const fetchCycleGroups = vi.fn();
 
 vi.mock("../api", () => ({
   searchTables: (...args: unknown[]) => searchTables(...args),
@@ -15,6 +16,7 @@ vi.mock("../api", () => ({
   fetchLatestScanRun: (...args: unknown[]) => fetchLatestScanRun(...args),
   createScan: (...args: unknown[]) => createScan(...args),
   fetchTableImpact: (...args: unknown[]) => fetchTableImpact(...args),
+  fetchCycleGroups: (...args: unknown[]) => fetchCycleGroups(...args),
 }));
 
 afterEach(() => {
@@ -27,7 +29,12 @@ beforeEach(() => {
   fetchLatestScanRun.mockReset();
   createScan.mockReset();
   fetchTableImpact.mockReset();
+  fetchCycleGroups.mockReset();
   fetchLatestScanRun.mockResolvedValue({ scan_run: null });
+  fetchCycleGroups.mockResolvedValue({
+    summary: { group_count: 0, table_count: 0, edge_count: 0 },
+    items: [],
+  });
 });
 
 test("stat cards link to the filtered object list page", async () => {
@@ -79,4 +86,48 @@ test("object list page filters by type and links each object to its detail page"
   await waitFor(() => {
     expect(screen.getByRole("link", { name: "legacy_orders" })).toBeTruthy();
   });
+});
+
+test("cycle analysis page shows grouped closed loops and links each table to detail", async () => {
+  fetchCycleGroups.mockResolvedValue({
+    summary: { group_count: 2, table_count: 5, edge_count: 5 },
+    items: [
+      {
+        group_key: "cycle_group:1",
+        table_count: 3,
+        edge_count: 3,
+        tables: [
+          { id: 1, key: "table:dm.triangle_a", name: "dm.triangle_a", object_type: "data_table" },
+          { id: 2, key: "table:dm.triangle_b", name: "dm.triangle_b", object_type: "data_table" },
+          { id: 3, key: "table:dm.triangle_c", name: "dm.triangle_c", object_type: "data_table" },
+        ],
+      },
+      {
+        group_key: "cycle_group:2",
+        table_count: 2,
+        edge_count: 2,
+        tables: [
+          { id: 4, key: "table:dm.loop_left", name: "dm.loop_left", object_type: "data_table" },
+          { id: 5, key: "table:dm.loop_right", name: "dm.loop_right", object_type: "data_table" },
+        ],
+      },
+    ],
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/analysis/cycles"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByRole("heading", { name: "闭环分析" })).toBeTruthy();
+  expect(screen.getByText("闭环组数量")).toBeTruthy();
+  expect(screen.getByText("闭环表总数")).toBeTruthy();
+  expect(screen.getByText("组内闭环边总数")).toBeTruthy();
+  expect(screen.getByText("闭环组 1")).toBeTruthy();
+  expect(screen.getByText(/3 张表/)).toBeTruthy();
+  expect(screen.getByText("dm.triangle_a")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "查看 dm.triangle_a 详情" }).getAttribute("href")).toBe(
+    "/tables/table%3Adm.triangle_a",
+  );
 });

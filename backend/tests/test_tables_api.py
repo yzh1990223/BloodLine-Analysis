@@ -1,6 +1,7 @@
 from pathlib import Path
 from textwrap import dedent
 
+from bloodline_api.models import Edge
 from bloodline_api.models import Node
 
 
@@ -337,3 +338,107 @@ def test_scan_pipeline_persists_source_node_types_and_job_sql_objects(client, tm
     lineage = client.get("/api/tables/table:stg.orders_excel/lineage")
     assert lineage.status_code == 200
     assert lineage.json()["upstream_tables"][0]["object_type"] == "source_file"
+
+
+def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session):
+    loop_left = Node(
+        type="data_object",
+        key="table:dm.loop_left",
+        name="dm.loop_left",
+        payload={"object_type": "data_table"},
+    )
+    loop_right = Node(
+        type="data_object",
+        key="table:dm.loop_right",
+        name="dm.loop_right",
+        payload={"object_type": "data_table"},
+    )
+    triangle_a = Node(
+        type="data_object",
+        key="table:dm.triangle_a",
+        name="dm.triangle_a",
+        payload={"object_type": "data_table"},
+    )
+    triangle_b = Node(
+        type="data_object",
+        key="table:dm.triangle_b",
+        name="dm.triangle_b",
+        payload={"object_type": "data_table"},
+    )
+    triangle_c = Node(
+        type="data_object",
+        key="table:dm.triangle_c",
+        name="dm.triangle_c",
+        payload={"object_type": "data_table"},
+    )
+    self_loop_only = Node(
+        type="data_object",
+        key="table:dm.self_only",
+        name="dm.self_only",
+        payload={"object_type": "data_table"},
+    )
+    db_session.add_all([loop_left, loop_right, triangle_a, triangle_b, triangle_c, self_loop_only])
+    db_session.flush()
+    db_session.add_all(
+        [
+            Edge(type="FLOWS_TO", src_node_id=loop_left.id, dst_node_id=loop_right.id, is_derived=True, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=loop_right.id, dst_node_id=loop_left.id, is_derived=True, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=triangle_a.id, dst_node_id=triangle_b.id, is_derived=True, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=triangle_b.id, dst_node_id=triangle_c.id, is_derived=True, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=triangle_c.id, dst_node_id=triangle_a.id, is_derived=True, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=self_loop_only.id, dst_node_id=self_loop_only.id, is_derived=True, payload={}),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get("/api/analysis/cycles")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["summary"] == {"group_count": 2, "table_count": 5, "edge_count": 5}
+    assert payload["items"] == [
+        {
+            "group_key": "cycle_group:1",
+            "table_count": 3,
+            "edge_count": 3,
+            "tables": [
+                {
+                    "id": triangle_a.id,
+                    "key": "table:dm.triangle_a",
+                    "name": "dm.triangle_a",
+                    "object_type": "data_table",
+                },
+                {
+                    "id": triangle_b.id,
+                    "key": "table:dm.triangle_b",
+                    "name": "dm.triangle_b",
+                    "object_type": "data_table",
+                },
+                {
+                    "id": triangle_c.id,
+                    "key": "table:dm.triangle_c",
+                    "name": "dm.triangle_c",
+                    "object_type": "data_table",
+                },
+            ],
+        },
+        {
+            "group_key": "cycle_group:2",
+            "table_count": 2,
+            "edge_count": 2,
+            "tables": [
+                {
+                    "id": loop_left.id,
+                    "key": "table:dm.loop_left",
+                    "name": "dm.loop_left",
+                    "object_type": "data_table",
+                },
+                {
+                    "id": loop_right.id,
+                    "key": "table:dm.loop_right",
+                    "name": "dm.loop_right",
+                    "object_type": "data_table",
+                },
+            ],
+        },
+    ]

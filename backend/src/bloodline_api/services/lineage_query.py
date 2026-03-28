@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from bloodline_api.models import Edge, Node, ScanRun
@@ -22,7 +22,8 @@ DEFAULT_OBJECT_TYPE = "data_table"
 def _resolve_input_path(value: str) -> Path:
     """Resolve relative scan inputs against the backend workspace."""
 
-    path = Path(value)
+    normalized = value.strip().replace("\\ ", " ")
+    path = Path(normalized)
     return path if path.is_absolute() else BACKEND_ROOT / path
 
 
@@ -445,6 +446,127 @@ class LineageQueryService:
 
         stmt = select(Node).where(Node.type == "job").order_by(Node.name.asc(), Node.id.asc())
         return list(db.scalars(stmt).all())
+
+    def get_self_loop_summary(self, db: Session) -> dict[str, Any]:
+        """Return grouped `FLOWS_TO` self-loop counts for review-oriented analysis pages."""
+
+        rows = db.execute(
+            select(Node, func.count(Edge.id).label("self_loop_count"))
+            .join(Edge, Edge.src_node_id == Node.id)
+            .where(
+                Node.type.in_(("table", "data_object")),
+                Edge.type == "FLOWS_TO",
+                Edge.src_node_id == Edge.dst_node_id,
+                Edge.dst_node_id == Node.id,
+            )
+            .group_by(Node.id)
+            .order_by(func.count(Edge.id).desc(), Node.name.asc(), Node.id.asc())
+        ).all()
+
+        items = [
+            {
+                **_serialize_object(node),
+                "self_loop_count": int(self_loop_count),
+            }
+            for node, self_loop_count in rows
+        ]
+
+        return {
+            "summary": {
+                "table_count": len(items),
+                "self_loop_count": sum(item["self_loop_count"] for item in items),
+            },
+            "items": items,
+        }
+
+    def get_cycle_group_summary(self, db: Session) -> dict[str, Any]:
+        """Group multi-table closed loops by strongly connected component."""
+
+        table_rows = list(
+            db.scalars(select(Node).where(Node.type.in_(("table", "data_object"))).order_by(Node.id.asc())).all()
+        )
+        node_by_id = {node.id: node for node in table_rows}
+        adjacency: dict[int, set[int]] = {node.id: set() for node in table_rows}
+        reverse_adjacency: dict[int, set[int]] = {node.id: set() for node in table_rows}
+
+        edge_rows = db.execute(
+            select(Edge.src_node_id, Edge.dst_node_id).where(Edge.type == "FLOWS_TO")
+        ).all()
+        edge_pairs: list[tuple[int, int]] = []
+        for source_id, target_id in edge_rows:
+            if source_id == target_id:
+                continue
+            if source_id not in node_by_id or target_id not in node_by_id:
+                continue
+            adjacency[source_id].add(target_id)
+            reverse_adjacency[target_id].add(source_id)
+            edge_pairs.append((source_id, target_id))
+
+        visit_order: list[int] = []
+        seen: set[int] = set()
+
+        def dfs_forward(node_id: int) -> None:
+            if node_id in seen:
+                return
+            seen.add(node_id)
+            for next_id in adjacency.get(node_id, ()):
+                dfs_forward(next_id)
+            visit_order.append(node_id)
+
+        for node_id in adjacency:
+            dfs_forward(node_id)
+
+        components: list[list[int]] = []
+        assigned: set[int] = set()
+
+        def dfs_reverse(node_id: int, bucket: list[int]) -> None:
+            if node_id in assigned:
+                return
+            assigned.add(node_id)
+            bucket.append(node_id)
+            for next_id in reverse_adjacency.get(node_id, ()):
+                dfs_reverse(next_id, bucket)
+
+        for node_id in reversed(visit_order):
+            if node_id in assigned:
+                continue
+            component: list[int] = []
+            dfs_reverse(node_id, component)
+            if len(component) >= 2:
+                components.append(component)
+
+        component_sets = [set(component) for component in components]
+        items: list[dict[str, Any]] = []
+        total_edge_count = 0
+        total_table_count = 0
+
+        for index, component_ids in enumerate(
+            sorted(component_sets, key=lambda ids: (-len(ids), sorted(node_by_id[node_id].name for node_id in ids))),
+            start=1,
+        ):
+            tables = sorted((node_by_id[node_id] for node_id in component_ids), key=lambda node: (node.name, node.id))
+            edge_count = sum(
+                1 for source_id, target_id in edge_pairs if source_id in component_ids and target_id in component_ids
+            )
+            total_edge_count += edge_count
+            total_table_count += len(tables)
+            items.append(
+                {
+                    "group_key": f"cycle_group:{index}",
+                    "table_count": len(tables),
+                    "edge_count": edge_count,
+                    "tables": [_serialize_object(node) for node in tables],
+                }
+            )
+
+        return {
+            "summary": {
+                "group_count": len(items),
+                "table_count": total_table_count,
+                "edge_count": total_edge_count,
+            },
+            "items": items,
+        }
 
     def get_table_lineage(self, db: Session, table_key: str) -> dict[str, Any] | None:
         """Return one table with its direct upstream/downstream neighbors."""

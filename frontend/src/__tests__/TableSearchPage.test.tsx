@@ -15,12 +15,14 @@ const searchTables = vi.fn();
 const fetchTableLineage = vi.fn();
 const fetchLatestScanRun = vi.fn();
 const createScan = vi.fn();
+const fetchCycleGroups = vi.fn();
 
 vi.mock("../api", () => ({
   searchTables: (...args: unknown[]) => searchTables(...args),
   fetchTableLineage: (...args: unknown[]) => fetchTableLineage(...args),
   fetchLatestScanRun: (...args: unknown[]) => fetchLatestScanRun(...args),
   createScan: (...args: unknown[]) => createScan(...args),
+  fetchCycleGroups: (...args: unknown[]) => fetchCycleGroups(...args),
 }));
 
 beforeEach(() => {
@@ -28,7 +30,12 @@ beforeEach(() => {
   fetchTableLineage.mockReset();
   fetchLatestScanRun.mockReset();
   createScan.mockReset();
+  fetchCycleGroups.mockReset();
   fetchLatestScanRun.mockResolvedValue({ scan_run: null });
+  fetchCycleGroups.mockResolvedValue({
+    summary: { group_count: 3, table_count: 8, edge_count: 11 },
+    items: [],
+  });
 });
 
 test("loads overview stats on first render and only fetches lineage when an item is selected", async () => {
@@ -70,6 +77,8 @@ test("loads overview stats on first render and only fetches lineage when an item
   });
   expect(await screen.findByText("对象概览")).toBeTruthy();
   expect(screen.getByText("总对象数")).toBeTruthy();
+  expect(screen.getByText("闭环分析")).toBeTruthy();
+  expect(screen.getByText("3")).toBeTruthy();
   expect(fetchTableLineage).not.toHaveBeenCalled();
 
   fireEvent.change(screen.getByPlaceholderText("搜索数据表"), {

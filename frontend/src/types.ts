@@ -38,6 +38,34 @@ export interface SearchResponse {
   items: TableSummary[];
 }
 
+export interface SelfLoopSummaryItem extends TableSummary {
+  self_loop_count: number;
+}
+
+export interface SelfLoopSummaryResponse {
+  summary: {
+    table_count: number;
+    self_loop_count: number;
+  };
+  items: SelfLoopSummaryItem[];
+}
+
+export interface CycleGroupSummaryItem {
+  group_key: string;
+  table_count: number;
+  edge_count: number;
+  tables: TableSummary[];
+}
+
+export interface CycleGroupSummaryResponse {
+  summary: {
+    group_count: number;
+    table_count: number;
+    edge_count: number;
+  };
+  items: CycleGroupSummaryItem[];
+}
+
 export interface ScanRunSummary {
   id: number;
   status: string;

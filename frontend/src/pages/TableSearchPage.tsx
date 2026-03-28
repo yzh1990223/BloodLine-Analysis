@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { fetchTableLineage, searchTables } from "../api";
+import { fetchCycleGroups, fetchTableLineage, searchTables } from "../api";
 import { ObjectTypeBadge } from "../components/ObjectTypeBadge";
 import { OverviewGraph } from "../components/OverviewGraph";
 import { ScanControlPanel } from "../components/ScanControlPanel";
 import { SearchBar } from "../components/SearchBar";
-import { TableLineageResponse, TableSummary } from "../types";
+import { CycleGroupSummaryResponse, TableLineageResponse, TableSummary } from "../types";
 
 interface OverviewStatCardProps {
   label: string;
@@ -36,16 +36,28 @@ export function TableSearchPage() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [cycleSummary, setCycleSummary] = useState<CycleGroupSummaryResponse["summary"]>({
+    group_count: 0,
+    table_count: 0,
+    edge_count: 0,
+  });
 
   async function loadCatalog(signal?: { cancelled: boolean }) {
     setCatalogLoading(true);
     setCatalogError(null);
     try {
-      const response = await searchTables("");
+      const [catalogResponse, cycleResponse] = await Promise.all([
+        searchTables(""),
+        fetchCycleGroups().catch(() => ({
+          summary: { group_count: 0, table_count: 0, edge_count: 0 },
+          items: [],
+        })),
+      ]);
       if (signal?.cancelled) {
         return;
       }
-      setCatalogItems(response.items);
+      setCatalogItems(catalogResponse.items);
+      setCycleSummary(cycleResponse.summary);
     } catch (err) {
       if (signal?.cancelled) {
         return;
@@ -139,6 +151,12 @@ export function TableSearchPage() {
               value={catalogItems.filter((item) => (item.object_type ?? "data_table") === "data_table").length}
               to="/objects?type=data_table"
               linkLabel="查看数据表对象列表"
+            />
+            <OverviewStatCard
+              label="闭环分析"
+              value={cycleSummary.group_count}
+              to="/analysis/cycles"
+              linkLabel="查看闭环分析页面"
             />
           </div>
         ) : null}

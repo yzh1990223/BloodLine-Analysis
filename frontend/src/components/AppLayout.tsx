@@ -24,6 +24,12 @@ function useBreadcrumbs() {
       { label: "对象列表" },
     ] satisfies BreadcrumbItem[];
   }
+  if (location.pathname === "/analysis/cycles") {
+    return [
+      { label: "总览", to: "/" },
+      { label: "闭环分析" },
+    ] satisfies BreadcrumbItem[];
+  }
   if (location.pathname.endsWith("/impact") && tableKey) {
     return [
       { label: "总览", to: "/" },
@@ -60,6 +66,7 @@ export function AppLayout() {
         <nav className="topbar-nav" aria-label="主导航">
           <Link to="/">总览</Link>
           <Link to="/#table-search">表搜索</Link>
+          <Link to="/analysis/cycles">闭环分析</Link>
         </nav>
         <div className="topbar-location" aria-label="面包屑">
           <span className="topbar-location-label">当前位置</span>
