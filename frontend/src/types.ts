@@ -10,6 +10,7 @@ export interface RelatedObjectSummary {
   id: number;
   key: string;
   name: string;
+  related_table_keys?: string[];
 }
 
 export interface RelatedObjects {

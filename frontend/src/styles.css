@@ -757,6 +757,22 @@ a {
   cursor: pointer;
 }
 
+.related-object-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #18445e;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+
+.related-object-button.is-active {
+  color: #111827;
+  text-decoration: underline;
+}
+
 .page-header .object-type-badge {
   margin-top: 10px;
 }

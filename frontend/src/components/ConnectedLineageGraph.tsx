@@ -12,6 +12,7 @@ interface ConnectedLineageGraphProps {
   currentTableKey: string;
   lineages: TableLineageResponse[];
   onTableSelect: (tableKey: string) => void;
+  highlightedTableKeys?: string[];
 }
 
 function DetailLineageNode({ data }: NodeProps<OverviewNodeData>) {
@@ -53,6 +54,7 @@ export function ConnectedLineageGraph({
   currentTableKey,
   lineages,
   onTableSelect,
+  highlightedTableKeys = [],
 }: ConnectedLineageGraphProps) {
   const [focusedTableKey, setFocusedTableKey] = useState<string | null>(currentTableKey);
 
@@ -73,10 +75,17 @@ export function ConnectedLineageGraph({
     [lineages],
   );
   const { nodes, edges } = useMemo(() => {
+    const relatedSelection = new Set(highlightedTableKeys);
     const neighborIds = new Set<string>();
     const highlightedEdgeIds = new Set<string>();
 
-    if (focusedTableKey) {
+    if (relatedSelection.size > 0) {
+      for (const edge of graph.edges) {
+        if (relatedSelection.has(edge.source) && relatedSelection.has(edge.target)) {
+          highlightedEdgeIds.add(edge.id);
+        }
+      }
+    } else if (focusedTableKey) {
       neighborIds.add(focusedTableKey);
       for (const edge of graph.edges) {
         if (edge.source === focusedTableKey || edge.target === focusedTableKey) {
@@ -92,7 +101,11 @@ export function ConnectedLineageGraph({
         ...node,
         className: [
           node.className ?? "",
-          focusedTableKey
+          relatedSelection.size > 0
+            ? relatedSelection.has(node.id)
+              ? "detail-node-neighbor"
+              : "detail-node-dim"
+            : focusedTableKey
             ? node.id === focusedTableKey
               ? "detail-node-selected"
               : neighborIds.has(node.id)
@@ -105,14 +118,18 @@ export function ConnectedLineageGraph({
       })),
       edges: graph.edges.map((edge) => ({
         ...edge,
-        className: focusedTableKey
+        className: relatedSelection.size > 0
+          ? highlightedEdgeIds.has(edge.id)
+            ? "detail-edge-highlighted"
+            : "detail-edge-dim"
+          : focusedTableKey
           ? highlightedEdgeIds.has(edge.id)
             ? "detail-edge-highlighted"
             : "detail-edge-dim"
           : "",
       })),
     };
-  }, [focusedTableKey, graph]);
+  }, [focusedTableKey, graph, highlightedTableKeys]);
   const nodeTypes = useMemo(() => ({ overviewObject: DetailLineageNode }), []);
 
   return (

@@ -52,7 +52,15 @@ def test_scan_pipeline_persists_table_lineage_and_related_objects(client):
     assert "table:dm.user_order_summary" in downstream_keys
     assert "table:app.order_dashboard" not in downstream_keys
     assert payload["related_objects"]["jobs"][0]["name"] == "daily_summary_job"
+    assert set(payload["related_objects"]["jobs"][0]["related_table_keys"]) >= {
+        "table:ods.orders",
+        "table:dm.user_order_summary",
+    }
     assert payload["related_objects"]["java_modules"][0]["name"] == "UserOrderDao"
+    assert set(payload["related_objects"]["java_modules"][0]["related_table_keys"]) >= {
+        "table:ods.orders",
+        "table:dm.user_order_summary",
+    }
 
 
 def test_table_impact_returns_downstream_tables_and_related_objects(client):

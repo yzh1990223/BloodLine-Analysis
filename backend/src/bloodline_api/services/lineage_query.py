@@ -140,6 +140,41 @@ class LineageQueryService:
         db.flush()
         return edge
 
+    def _collect_actor_table_keys(self, db: Session, actor: Node) -> list[str]:
+        """Collect stable object keys touched by one job, transformation, or Java module."""
+
+        table_keys: set[str] = set()
+
+        if actor.type in {"job", "transformation", "java_module"}:
+            direct_table_ids = db.scalars(
+                select(Edge.dst_node_id).where(
+                    Edge.src_node_id == actor.id,
+                    Edge.type.in_(("READS", "WRITES")),
+                )
+            ).all()
+            for node_id in direct_table_ids:
+                table = db.get(Node, node_id)
+                if table is not None and table.type in {"table", "data_object"}:
+                    table_keys.add(table.key)
+
+        if actor.type == "job":
+            transformation_ids = db.scalars(
+                select(Edge.dst_node_id).where(Edge.src_node_id == actor.id, Edge.type == "CALLS")
+            ).all()
+            for transformation_id in transformation_ids:
+                touched_table_ids = db.scalars(
+                    select(Edge.dst_node_id).where(
+                        Edge.src_node_id == transformation_id,
+                        Edge.type.in_(("READS", "WRITES")),
+                    )
+                ).all()
+                for node_id in touched_table_ids:
+                    table = db.get(Node, node_id)
+                    if table is not None and table.type in {"table", "data_object"}:
+                        table_keys.add(table.key)
+
+        return sorted(table_keys)
+
     def _related_objects(self, db: Session, table: Node) -> dict[str, list[dict[str, Any]]]:
         """Collect jobs, Java modules, and transformations linked to one table."""
 
@@ -175,15 +210,30 @@ class LineageQueryService:
 
         return {
             "jobs": [
-                {"id": node.id, "key": node.key, "name": node.name}
+                {
+                    "id": node.id,
+                    "key": node.key,
+                    "name": node.name,
+                    "related_table_keys": self._collect_actor_table_keys(db, node),
+                }
                 for node in sorted(job_nodes.values(), key=lambda item: (item.name, item.id))
             ],
             "java_modules": [
-                {"id": node.id, "key": node.key, "name": node.name}
+                {
+                    "id": node.id,
+                    "key": node.key,
+                    "name": node.name,
+                    "related_table_keys": self._collect_actor_table_keys(db, node),
+                }
                 for node in sorted(java_module_nodes.values(), key=lambda item: (item.name, item.id))
             ],
             "transformations": [
-                {"id": node.id, "key": node.key, "name": node.name}
+                {
+                    "id": node.id,
+                    "key": node.key,
+                    "name": node.name,
+                    "related_table_keys": self._collect_actor_table_keys(db, node),
+                }
                 for node in sorted(transformation_nodes.values(), key=lambda item: (item.name, item.id))
             ],
         }

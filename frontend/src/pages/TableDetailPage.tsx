@@ -178,9 +178,15 @@ export function TableDetailPage() {
   const [chainLineages, setChainLineages] = useState<TableLineageResponse[]>([]);
   const [chainLoading, setChainLoading] = useState(true);
   const [chainError, setChainError] = useState<string | null>(null);
+  const [activeRelatedObjectKey, setActiveRelatedObjectKey] = useState<string | null>(null);
+  const [highlightedTableKeys, setHighlightedTableKeys] = useState<string[]>([]);
 
   useEffect(() => {
     let active = true;
+    setChainLoading(true);
+    setChainError(null);
+    setActiveRelatedObjectKey(null);
+    setHighlightedTableKeys([]);
 
     async function load() {
       try {
@@ -240,6 +246,7 @@ export function TableDetailPage() {
         <ConnectedLineageGraph
           currentTableKey={decodedTableKey}
           lineages={chainLineages}
+          highlightedTableKeys={highlightedTableKeys}
           onTableSelect={(tableKey) => navigate(`/tables/${encodeURIComponent(tableKey)}`)}
         />
       ) : null}
@@ -252,6 +259,11 @@ export function TableDetailPage() {
       />
 
       <RelatedObjectsPanel
+        activeObjectKey={activeRelatedObjectKey}
+        onObjectSelect={(objectKey, relatedTableKeys) => {
+          setActiveRelatedObjectKey(objectKey);
+          setHighlightedTableKeys(objectKey ? relatedTableKeys : []);
+        }}
         relatedObjects={
           lineage?.related_objects ?? {
             jobs: [],

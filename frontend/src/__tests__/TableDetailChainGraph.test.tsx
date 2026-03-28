@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, expect, test, vi } from "vitest";
 import { TableDetailPage } from "../pages/TableDetailPage";
@@ -85,7 +85,21 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
       downstream_tables: [
         { id: 3, key: "table:app.order_dashboard", name: "app.order_dashboard", object_type: "data_table" },
       ],
-      related_objects: { jobs: [], java_modules: [], transformations: [] },
+      related_objects: {
+        jobs: [
+          {
+            id: 10,
+            key: "job:daily_summary_job",
+            name: "daily_summary_job",
+            related_table_keys: [
+              "source_table:legacy_orders",
+              "table:dm.user_order_summary",
+            ],
+          },
+        ],
+        java_modules: [],
+        transformations: [],
+      },
     };
   });
 
@@ -111,4 +125,11 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
   expect(screen.getAllByText("app.order_dashboard").length).toBeGreaterThan(0);
   expect(screen.queryByText("dm.legacy_side_output")).toBeNull();
   expect(screen.queryByText("ods.dashboard_source")).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "daily_summary_job" }));
+
+  await waitFor(() => {
+    expect(screen.getByTestId("rf__node-source_table:legacy_orders").className).toContain("detail-node-neighbor");
+    expect(screen.getByTestId("rf__node-table:app.order_dashboard").className).toContain("detail-node-dim");
+  });
 });
