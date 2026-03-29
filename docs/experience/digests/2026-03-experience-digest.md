@@ -8,6 +8,7 @@
 2. 图展示与可读性
 3. 本地验证与开发环境一致性
 4. 治理分层边界
+5. GitHub Project 任务闭环落地
 
 ## 已沉淀的代表经验
 
@@ -38,6 +39,16 @@
 - `superpowers` 管方法
 - AI hooks 管事件提醒
 - hooks / CI 管门禁
+
+### 4. GitHub Project 任务闭环
+
+- GitHub Project 的父子层级关系必须显式建立，不能依赖命名或 Milestone 让 UI 自己推断
+- GitHub 内置 `Status` 不足以表达完整任务流转，需要和自定义 `Workflow` 配合使用
+- Project 视图配置不应高估自动化浏览器能力，部分步骤需要人工在已登录浏览器中完成
+
+结论：
+
+- GitHub Project 落地应采用“双层状态模型 + 显式父子关系 + 自动化与人工协同”的策略
 
 ## 已发生的回灌
 
