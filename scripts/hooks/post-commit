@@ -1,9 +1,41 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if git show --name-only --pretty="" HEAD | grep -E '^(backend/|frontend/)' >/dev/null; then
+changed_files="$(git show --name-only --pretty="" HEAD)"
+commit_subject="$(git log -1 --pretty=%s)"
+
+if echo "$changed_files" | grep -E '^(backend/|frontend/)' >/dev/null; then
   echo "[post-commit] 检测到代码提交，请确认测试与文档已同步。"
 else
   echo "[post-commit] 本次提交主要为非代码变更。"
 fi
 
+reminders=()
+
+add_reminder() {
+  local category="$1"
+  local reason="$2"
+  reminders+=("[experience] 建议评估是否沉淀 ${category} 类经验：${reason}")
+}
+
+if [[ "$commit_subject" =~ ^fix: ]]; then
+  add_reminder "incident" "本次提交属于 fix，可能沉淀为 bug / 故障 / 误判经验。"
+fi
+
+if echo "$changed_files" | grep -E '^(scripts/hooks/|\.github/workflows/|AGENTS\.md$)' >/dev/null; then
+  add_reminder "governance" "本次提交涉及治理脚本、CI 或 AGENTS，适合沉淀治理经验。"
+fi
+
+if echo "$changed_files" | grep -E '^backend/src/bloodline_api/services/lineage_query.py$' >/dev/null; then
+  add_reminder "implementation" "本次提交涉及核心血缘服务，适合沉淀实现或设计经验。"
+fi
+
+if echo "$changed_files" | grep -E '^frontend/src/pages/' >/dev/null; then
+  add_reminder "implementation" "本次提交涉及页面交互调整，适合沉淀实现或展示经验。"
+fi
+
+if [[ "${#reminders[@]}" -gt 0 ]]; then
+  printf '%s\n' "${reminders[@]}"
+  echo "[experience] 可参考：docs/experience/README.md"
+  echo "[experience] 治理入口：docs/governance/experience-closure-foundation.md"
+fi

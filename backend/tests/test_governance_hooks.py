@@ -9,6 +9,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOC_SYNC_SCRIPT = REPO_ROOT / "scripts" / "hooks" / "doc-sync-check.sh"
 SCHEMA_SCRIPT = REPO_ROOT / "scripts" / "hooks" / "schema-migration-check.sh"
+POST_COMMIT_SCRIPT = REPO_ROOT / "scripts" / "hooks" / "post-commit"
 
 
 def _init_git_repo(tmp_path: Path) -> Path:
@@ -77,3 +78,37 @@ def test_schema_migration_points_model_changes_to_migration_and_design_docs(tmp_
 
     assert "backend/alembic/versions/" in completed.stdout
     assert "docs/superpowers/specs/" in completed.stdout
+
+
+def test_post_commit_suggests_incident_experience_after_fix_commit(tmp_path: Path) -> None:
+    repo = _init_git_repo(tmp_path)
+    _stage_file(repo, "backend/src/bloodline_api/services/example.py")
+    subprocess.run(["git", "commit", "-m", "fix: 修复路径处理"], cwd=repo, check=True, capture_output=True, text=True)
+
+    completed = subprocess.run(
+        ["bash", str(POST_COMMIT_SCRIPT)],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "incident" in completed.stdout
+    assert "docs/experience/README.md" in completed.stdout
+
+
+def test_post_commit_suggests_governance_experience_after_hook_commit(tmp_path: Path) -> None:
+    repo = _init_git_repo(tmp_path)
+    _stage_file(repo, "scripts/hooks/example.sh")
+    subprocess.run(["git", "commit", "-m", "chore: 调整治理脚本"], cwd=repo, check=True, capture_output=True, text=True)
+
+    completed = subprocess.run(
+        ["bash", str(POST_COMMIT_SCRIPT)],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "governance" in completed.stdout
+    assert "experience-closure-foundation.md" in completed.stdout

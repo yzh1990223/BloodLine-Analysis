@@ -94,6 +94,8 @@ YYYY-MM-DD-<topic>.md
   - 给出项目级入口规则
 - `tests/governance_smoke.sh`
   - 检查经验体系核心文档存在
+- `scripts/hooks/post-commit`
+  - 在特定提交后提醒是否值得沉淀经验
 
 ## 什么时候应新建经验条目
 
