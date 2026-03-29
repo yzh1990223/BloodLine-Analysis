@@ -71,6 +71,12 @@ cd frontend && npm run build
   - 用于说明 AI 会话 hooks 当前如何接入
 - `tests/governance_smoke.sh`
   - 用于做治理文件与关键脚本的最小 smoke 校验
+- `vibe-coding-architecture-overview.md`
+  - 用于说明当前整体 Vibe Coding 架构如何分层协同
+- `next-stage-improvement-checklist.md`
+  - 用于说明下一阶段最值得继续增强的点
+- `experience-closure-foundation.md`
+  - 用于说明经验沉淀闭环如何接入当前治理体系
 
 ## 后续建议
 

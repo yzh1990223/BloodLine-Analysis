@@ -49,6 +49,10 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 
 - 必须检查文档同步
 
+重大 bug、治理失效、UAT 关键反馈或重要设计取舍出现后：
+
+- 应评估是否需要沉淀到 `docs/experience/`
+
 ## 文档同步规则
 
 以下路径发生改动时，应检查文档同步：
@@ -73,6 +77,7 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 
 - 提交流程说明见 `docs/governance/commit-workflow.md`
 - AI hooks 接入说明见 `docs/governance/ai-hook-integration.md`
+- 经验沉淀闭环说明见 `docs/governance/experience-closure-foundation.md`
 
 ## 提交规范
 

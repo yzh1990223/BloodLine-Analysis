@@ -153,7 +153,9 @@ npm run build
 - `docs/governance/hook-matrix.md`
 - `docs/governance/commit-workflow.md`
 - `docs/governance/ai-hook-integration.md`
+- `docs/governance/experience-closure-foundation.md`
 - `docs/governance/superpowers-collaboration-principles.md`
+- `docs/experience/README.md`
 
 ### 启用本地 hooks
 
