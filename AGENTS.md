@@ -53,6 +53,10 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 
 - 应评估是否需要沉淀到 `docs/experience/`
 
+较大功能、治理升级或阶段性主题开始前：
+
+- 应评估是否需要用 Epic / Task / Milestone / Roadmap 形成任务闭环
+
 ## 文档同步规则
 
 以下路径发生改动时，应检查文档同步：
@@ -78,6 +82,10 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 - 提交流程说明见 `docs/governance/commit-workflow.md`
 - AI hooks 接入说明见 `docs/governance/ai-hook-integration.md`
 - 经验沉淀闭环说明见 `docs/governance/experience-closure-foundation.md`
+
+如果改动涉及任务拆解、阶段推进、Issue / Project 使用规范或 Roadmap 管理：
+
+- 任务闭环体系说明见 `docs/governance/task-closure-and-roadmap-foundation.md`
 
 ## 提交规范
 

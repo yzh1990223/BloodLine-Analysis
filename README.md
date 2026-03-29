@@ -150,6 +150,7 @@ npm run build
 关键治理文档：
 
 - `docs/governance/governance-foundation.md`
+- `docs/governance/task-closure-and-roadmap-foundation.md`
 - `docs/governance/hook-matrix.md`
 - `docs/governance/commit-workflow.md`
 - `docs/governance/ai-hook-integration.md`
@@ -183,6 +184,22 @@ bash scripts/hooks/install-hooks.sh
   - 前端测试
   - 前端构建
   - API/前端同步检查
+
+## 任务闭环与 Roadmap
+
+当前仓库已经补充了任务闭环治理设计，用于把 spec / plan、GitHub Issues、Project、Milestone、Roadmap 和经验沉淀闭环串起来。
+
+任务体系入口文档：
+
+- `docs/governance/task-closure-and-roadmap-foundation.md`
+
+这套体系的定位是：
+
+- spec / plan 负责设计与拆解
+- Epic / Task 负责执行
+- GitHub Project 负责状态可视化
+- Milestone / Roadmap 负责阶段推进和发展历程
+- `docs/experience/` 负责执行后的经验回灌
 
 ### 推荐日常使用顺序
 

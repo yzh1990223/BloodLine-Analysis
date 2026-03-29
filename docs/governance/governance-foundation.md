@@ -77,6 +77,8 @@ cd frontend && npm run build
   - 用于说明下一阶段最值得继续增强的点
 - `experience-closure-foundation.md`
   - 用于说明经验沉淀闭环如何接入当前治理体系
+- `task-closure-and-roadmap-foundation.md`
+  - 用于说明 spec / plan、GitHub Issues、Project、Milestone 与 Roadmap 如何形成任务闭环
 
 ## 后续建议
 

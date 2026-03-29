@@ -13,6 +13,7 @@ test -f docs/governance/ai-hook-integration.md
 test -f docs/governance/vibe-coding-architecture-overview.md
 test -f docs/governance/next-stage-improvement-checklist.md
 test -f docs/governance/experience-closure-foundation.md
+test -f docs/governance/task-closure-and-roadmap-foundation.md
 test -f docs/experience/README.md
 test -f docs/experience/indexes/experience-index.md
 
