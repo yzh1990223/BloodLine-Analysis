@@ -1,0 +1,71 @@
+name: Task
+description: 用于 Epic 下的单一职责执行任务。
+title: "task: "
+labels:
+  - task
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: 任务目标
+      description: 这个任务完成后应该得到什么结果。
+    validations:
+      required: true
+  - type: textarea
+    id: parent
+    attributes:
+      label: 关联 Epic / 上下文
+      description: 关联父 Epic、spec 或 plan。
+      placeholder: |
+        Epic:
+        Spec / Plan:
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 边界
+      description: 写明本任务只负责什么，不负责什么。
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: 验收标准
+      description: 用可验证的结果描述完成标准。
+      placeholder: |
+        - 
+        - 
+    validations:
+      required: true
+  - type: checkboxes
+    id: doc_test
+    attributes:
+      label: 联动检查
+      options:
+        - label: 需要同步文档
+        - label: 需要补测试
+        - label: 需要评估经验沉淀
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Backend
+        - Frontend
+        - Lineage
+        - Governance
+        - Docs
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true

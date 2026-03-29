@@ -1,0 +1,36 @@
+name: Governance
+description: 用于治理脚本、hooks、CI、规则或协作流程增强。
+title: "chore: "
+labels:
+  - governance
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 当前问题
+      description: 当前治理体系哪里不够，风险是什么。
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: 计划改动
+      description: 本次打算增强哪些规则、脚本或文档。
+    validations:
+      required: true
+  - type: textarea
+    id: guardrail
+    attributes:
+      label: 边界
+      description: 写清楚这次不会做什么，避免把治理做得过重。
+    validations:
+      required: true
+  - type: checkboxes
+    id: sync
+    attributes:
+      label: 联动
+      options:
+        - label: 需要同步 AGENTS.md
+        - label: 需要同步 docs/governance/
+        - label: 需要更新 governance smoke / CI
+        - label: 需要沉淀 governance 经验

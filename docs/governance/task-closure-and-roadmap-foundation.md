@@ -156,6 +156,10 @@ Roadmap 用来展示：
 6. 用 Milestone 收口阶段
 7. 用阶段总结和经验闭环记录演进痕迹
 
+具体的 issue 类型、模板与字段填写建议，见：
+
+- `docs/governance/github-issue-and-project-playbook.md`
+
 ## 七、边界说明
 
 本文件定义的是“任务执行与阶段演进”的治理基础，不负责替代：

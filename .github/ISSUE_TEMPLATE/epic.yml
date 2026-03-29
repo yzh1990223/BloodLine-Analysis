@@ -1,0 +1,86 @@
+name: Epic
+description: 用于较大能力、阶段主题或治理升级的父任务。
+title: "epic: "
+labels:
+  - epic
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: 目标
+      description: 用一句话描述本 Epic 要实现什么。
+      placeholder: 例如：完成 MySQL 元数据接入，为字段级血缘做好基础准备。
+    validations:
+      required: true
+  - type: textarea
+    id: background
+    attributes:
+      label: 背景与动机
+      description: 为什么现在要做这件事。
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: 范围
+      description: 明确包含与不包含的内容。
+      placeholder: |
+        包含：
+        - 
+        不包含：
+        - 
+    validations:
+      required: true
+  - type: textarea
+    id: spec_plan
+    attributes:
+      label: 关联 spec / plan
+      description: 粘贴对应文档路径或链接。
+      placeholder: |
+        Spec:
+        - docs/superpowers/specs/...
+        Plan:
+        - docs/superpowers/plans/...
+    validations:
+      required: true
+  - type: textarea
+    id: tasks
+    attributes:
+      label: 拟拆分子任务
+      description: 先列出计划中的子任务清单，后续可转成 sub-issues。
+      placeholder: |
+        - [ ] 后端连接器
+        - [ ] schema 扩展
+        - [ ] API 扩展
+        - [ ] 前端展示
+        - [ ] 文档同步
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: 主 Area
+      options:
+        - Lineage
+        - Backend
+        - Frontend
+        - Governance
+        - Docs
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - P0
+        - P1
+        - P2
+        - P3
+    validations:
+      required: true
+  - type: input
+    id: milestone
+    attributes:
+      label: 目标 Milestone
+      description: 例如 MVP2.0 或 Governance-Next。

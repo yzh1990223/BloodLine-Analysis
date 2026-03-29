@@ -86,6 +86,7 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 如果改动涉及任务拆解、阶段推进、Issue / Project 使用规范或 Roadmap 管理：
 
 - 任务闭环体系说明见 `docs/governance/task-closure-and-roadmap-foundation.md`
+- Issue / Project 使用规范见 `docs/governance/github-issue-and-project-playbook.md`
 
 ## 提交规范
 

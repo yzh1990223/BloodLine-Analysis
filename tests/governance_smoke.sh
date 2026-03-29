@@ -14,8 +14,15 @@ test -f docs/governance/vibe-coding-architecture-overview.md
 test -f docs/governance/next-stage-improvement-checklist.md
 test -f docs/governance/experience-closure-foundation.md
 test -f docs/governance/task-closure-and-roadmap-foundation.md
+test -f docs/governance/github-issue-and-project-playbook.md
 test -f docs/experience/README.md
 test -f docs/experience/indexes/experience-index.md
+test -f .github/ISSUE_TEMPLATE/config.yml
+test -f .github/ISSUE_TEMPLATE/epic.yml
+test -f .github/ISSUE_TEMPLATE/task.yml
+test -f .github/ISSUE_TEMPLATE/bug.yml
+test -f .github/ISSUE_TEMPLATE/governance.yml
+test -f .github/ISSUE_TEMPLATE/experience-follow-up.yml
 
 bash scripts/hooks/api-frontend-sync-check.sh
 bash -n scripts/hooks/pre-commit

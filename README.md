@@ -192,6 +192,7 @@ bash scripts/hooks/install-hooks.sh
 任务体系入口文档：
 
 - `docs/governance/task-closure-and-roadmap-foundation.md`
+- `docs/governance/github-issue-and-project-playbook.md`
 
 这套体系的定位是：
 

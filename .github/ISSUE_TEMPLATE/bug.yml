@@ -1,0 +1,46 @@
+name: Bug
+description: 用于 bug、误判、异常行为或回归问题。
+title: "fix: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: symptom
+    attributes:
+      label: 现象
+      description: 具体看到了什么错误或异常行为。
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: 影响范围
+      description: 影响到了哪些功能、页面、数据或治理流程。
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤
+      description: 给出尽量稳定的复现路径。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: 已知根因或线索
+      description: 如果已经有初步判断，在这里补充。
+  - type: checkboxes
+    id: followup
+    attributes:
+      label: 后续动作
+      options:
+        - label: 修复后需要回归测试
+        - label: 修复后需要同步文档
+        - label: 修复后需要沉淀 incident 经验

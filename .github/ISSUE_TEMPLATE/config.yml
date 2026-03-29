@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 治理与任务闭环说明
+    url: https://github.com/yzh1990223/BloodLine-Analysis/blob/main/docs/governance/github-issue-and-project-playbook.md
+    about: 先阅读 GitHub Issue、Project、Milestone 与 Roadmap 的使用规范。
