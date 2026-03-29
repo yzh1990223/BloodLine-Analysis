@@ -147,6 +147,14 @@ npm run build
 - AI 会话 hooks 骨架
 - GitHub Actions CI
 
+关键治理文档：
+
+- `docs/governance/governance-foundation.md`
+- `docs/governance/hook-matrix.md`
+- `docs/governance/commit-workflow.md`
+- `docs/governance/ai-hook-integration.md`
+- `docs/governance/superpowers-collaboration-principles.md`
+
 ### 启用本地 hooks
 
 先确保本机已安装 `lefthook`，然后在仓库根目录执行：
@@ -180,6 +188,7 @@ bash scripts/hooks/install-hooks.sh
 cd backend && .venv/bin/pytest -q
 cd frontend && npm test
 cd frontend && npm run build
+bash tests/governance_smoke.sh
 git add <明确文件列表>
 git commit -m "feat: 你的中文说明"
 git push origin main

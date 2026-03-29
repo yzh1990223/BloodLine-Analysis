@@ -65,6 +65,12 @@ cd frontend && npm run build
 - README 中的治理体系说明
 - 本地 hooks 的启用与使用说明
 - 更完整的日常提交流程建议
+- `commit-workflow.md`
+  - 用于说明仓库里的轻量提交分组和 hooks 处理方式
+- `ai-hook-integration.md`
+  - 用于说明 AI 会话 hooks 当前如何接入
+- `tests/governance_smoke.sh`
+  - 用于做治理文件与关键脚本的最小 smoke 校验
 
 ## 后续建议
 

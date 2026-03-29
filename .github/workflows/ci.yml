@@ -5,6 +5,14 @@ on:
   pull_request:
 
 jobs:
+  governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run governance smoke
+        run: |
+          bash tests/governance_smoke.sh
+
   backend:
     runs-on: ubuntu-latest
     steps:

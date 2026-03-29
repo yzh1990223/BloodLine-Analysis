@@ -14,6 +14,7 @@
 | pre-push | `scripts/hooks/pre-push` | 推送前运行测试、构建和专项检查 | `git push` |
 | api-frontend-sync-check | `scripts/hooks/api-frontend-sync-check.sh` | 检查关键 API 路径是否在前后端同时存在 | `git push` |
 | install-hooks | `scripts/hooks/install-hooks.sh` | 安装 lefthook 到本地 `.git/hooks` | 手动执行 |
+| governance-smoke | `tests/governance_smoke.sh` | 检查治理文档和关键脚本是否完整可运行 | 手动执行 / CI |
 
 ## AI Session Hooks
 
@@ -31,4 +32,10 @@
    - `cd backend && .venv/bin/pytest -q`
    - `cd frontend && npm test`
    - `cd frontend && npm run build`
+   - `bash tests/governance_smoke.sh`
 3. 再开始日常 `commit` / `push`
+
+## 相关文档
+
+- `docs/governance/commit-workflow.md`
+- `docs/governance/ai-hook-integration.md`

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if git diff --cached --check >/dev/null; then
-  echo "[pre-commit] 基础 diff 检查通过"
-fi
+staged_count="$(git diff --cached --name-only | sed '/^$/d' | wc -l | tr -d ' ')"
 
+if git diff --cached --check >/dev/null; then
+  echo "[pre-commit] 基础 diff 检查通过，当前暂存 ${staged_count} 个文件。"
+fi
