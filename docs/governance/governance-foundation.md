@@ -27,3 +27,50 @@
   - 重验证
 - 文档不同步默认先提醒，不一开始就全量阻断
 
+## 启用方式
+
+### 1. 安装本地 hooks
+
+确保本机已安装 `lefthook` 后，在仓库根目录执行：
+
+```bash
+bash scripts/hooks/install-hooks.sh
+```
+
+### 2. 验证本地工具链
+
+建议先保证以下命令在本机可运行：
+
+```bash
+cd backend && .venv/bin/pytest -q
+cd frontend && npm test
+cd frontend && npm run build
+```
+
+### 3. 日常提交流程
+
+推荐顺序：
+
+1. 先手动跑测试和构建
+2. 再 `git add` 明确文件列表
+3. 再 `git commit`
+4. 最后 `git push`
+
+## 第二轮增强内容
+
+相比第一版骨架，当前第二轮增强补充了：
+
+- `install-hooks.sh`
+  - 用于安装 `lefthook`
+- README 中的治理体系说明
+- 本地 hooks 的启用与使用说明
+- 更完整的日常提交流程建议
+
+## 后续建议
+
+下一轮如继续增强，可考虑：
+
+- 在 CI 中补专项脚本校验
+- 给 `pre-commit` 增加更细的文档路径映射
+- 引入格式化工具后再接入自动格式化
+- 结合你的 AI 客户端，把 `scripts/hooks/ai-session/` 真正接到事件钩子上

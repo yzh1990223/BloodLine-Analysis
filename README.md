@@ -31,6 +31,7 @@
 - `backend`：FastAPI 服务、解析器、图构建与查询逻辑
 - `frontend`：React + Vite 页面
 - `docs`：设计、实施、部署和 UAT 文档
+- `scripts/hooks`：本地 Git hooks、专项治理脚本、AI 会话 hooks 骨架
 
 ## 启动后端
 
@@ -134,4 +135,52 @@ cd backend
 cd frontend
 npm test
 npm run build
+```
+
+## 治理体系
+
+仓库当前已经引入第一版治理体系，包括：
+
+- 根目录与子目录 `AGENTS.md`
+- `lefthook.yml`
+- 本地 Git hooks
+- AI 会话 hooks 骨架
+- GitHub Actions CI
+
+### 启用本地 hooks
+
+先确保本机已安装 `lefthook`，然后在仓库根目录执行：
+
+```bash
+bash scripts/hooks/install-hooks.sh
+```
+
+如果安装成功，后续执行 `git commit` / `git push` 时会自动触发本地门禁。
+
+### 当前本地门禁
+
+- `pre-commit`
+  - 受保护文件检查
+  - 提交粒度检查
+  - 文档同步提醒
+  - 模型/迁移联动提醒
+- `commit-msg`
+  - Conventional Commits 校验
+- `post-commit`
+  - 提交后同步提醒
+- `pre-push`
+  - 后端测试
+  - 前端测试
+  - 前端构建
+  - API/前端同步检查
+
+### 推荐日常使用顺序
+
+```bash
+cd backend && .venv/bin/pytest -q
+cd frontend && npm test
+cd frontend && npm run build
+git add <明确文件列表>
+git commit -m "feat: 你的中文说明"
+git push origin main
 ```
