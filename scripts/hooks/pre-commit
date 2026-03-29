@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if git diff --cached --check >/dev/null; then
+  echo "[pre-commit] 基础 diff 检查通过"
+fi
+

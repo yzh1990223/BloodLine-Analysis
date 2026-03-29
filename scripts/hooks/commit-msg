@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+message_file="${1:-}"
+message="$(cat "$message_file")"
+
+if [[ ! "$message" =~ ^(feat|fix|docs|refactor|test|chore|style):\ .+ ]]; then
+  echo "[commit-msg] 提交信息必须符合 Conventional Commits，例如：feat: 增加闭环分析页"
+  exit 1
+fi
+

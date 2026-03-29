@@ -1,0 +1,28 @@
+pre-commit:
+  commands:
+    protected-files:
+      run: bash scripts/hooks/protected-files-check.sh
+    granularity:
+      run: bash scripts/hooks/commit-granularity-check.sh
+    docs-sync:
+      run: bash scripts/hooks/doc-sync-check.sh
+    schema-migration:
+      run: bash scripts/hooks/schema-migration-check.sh
+    pre-commit:
+      run: bash scripts/hooks/pre-commit
+
+commit-msg:
+  commands:
+    commit-msg:
+      run: bash scripts/hooks/commit-msg {1}
+
+post-commit:
+  commands:
+    post-commit:
+      run: bash scripts/hooks/post-commit
+
+pre-push:
+  commands:
+    pre-push:
+      run: bash scripts/hooks/pre-push
+

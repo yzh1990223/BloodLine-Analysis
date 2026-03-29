@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root_dir="$(cd "$(dirname "$0")/../.." && pwd)"
+
+(
+  cd "$root_dir/backend"
+  .venv/bin/pytest -q
+)
+
+(
+  cd "$root_dir/frontend"
+  npm test
+  npm run build
+)
+
+bash "$root_dir/scripts/hooks/api-frontend-sync-check.sh"
+bash "$root_dir/scripts/hooks/doc-sync-check.sh"
+

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if git show --name-only --pretty="" HEAD | grep -E '^(backend/|frontend/)' >/dev/null; then
+  echo "[post-commit] 检测到代码提交，请确认测试与文档已同步。"
+else
+  echo "[post-commit] 本次提交主要为非代码变更。"
+fi
+
