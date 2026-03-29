@@ -27,7 +27,7 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 
 - `backend/`：FastAPI、解析器、图构建、查询接口
 - `frontend/`：React 页面、图展示、测试
-- `docs/`：设计、部署、UAT、阶段总结
+- `docs/`：设计、部署、UAT、治理、阶段总结
 - `scripts/hooks/`：本地治理脚本
 
 ## 必跑命令
@@ -40,6 +40,10 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 
 - `cd frontend && npm test`
 - `cd frontend && npm run build`
+
+治理脚本、治理文档或 CI 改动后：
+
+- `bash tests/governance_smoke.sh`
 
 修改接口、页面、运行方式、能力边界或数据结构后：
 
@@ -64,6 +68,11 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 - `docs/governance/`
 - `docs/superpowers/specs/`
 - `docs/superpowers/plans/`
+
+如果改动涉及提交流程、hooks、CI 或 AI 会话规则：
+
+- 提交流程说明见 `docs/governance/commit-workflow.md`
+- AI hooks 接入说明见 `docs/governance/ai-hook-integration.md`
 
 ## 提交规范
 
