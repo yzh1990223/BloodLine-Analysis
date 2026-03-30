@@ -6,6 +6,7 @@ from bloodline_api.connectors.mysql_metadata import MySQLMetadataObject
 from bloodline_api.models import Edge
 from bloodline_api.models import Node
 from bloodline_api.models import ObjectMetadata
+from bloodline_api.models import ObjectMetadataColumn
 
 
 def test_search_tables_returns_matching_nodes(client, db_session):
@@ -580,6 +581,70 @@ def test_scan_pipeline_reuses_metadata_node_for_bare_repo_table_names(client, mo
     assert lineage.status_code == 200
     upstream_keys = {item["key"] for item in lineage.json()["upstream_tables"]}
     assert "table:winddf.cbonddescription" in upstream_keys
+
+
+def test_rescan_without_mysql_metadata_clears_metadata_tables(client, db_session, monkeypatch, tmp_path):
+    def fake_load(self, request):
+        return [
+            MySQLMetadataObject(
+                database_name="winddf",
+                object_name="cbonddescription",
+                object_kind="table",
+                comment="bond base table",
+                columns=[
+                    MySQLMetadataColumn(
+                        column_name="bond_code",
+                        data_type="varchar",
+                        ordinal_position=1,
+                        is_nullable=False,
+                        column_comment=None,
+                    )
+                ],
+            )
+        ]
+
+    monkeypatch.setattr(
+        "bloodline_api.connectors.mysql_metadata.MySQLMetadataLoader.load",
+        fake_load,
+    )
+
+    first_response = client.post(
+        "/api/scan",
+        json={
+            "repo_path": "tests/fixtures/sample.repo.xml",
+            "mysql_dsn": "mysql+pymysql://user:pass@localhost/winddf",
+        },
+    )
+    assert first_response.status_code == 202
+    assert db_session.query(ObjectMetadata).count() == 1
+    assert db_session.query(ObjectMetadataColumn).count() == 1
+
+    replacement_repo = tmp_path / "replacement.repo.xml"
+    replacement_repo.write_text(
+        dedent(
+            """
+            <repository>
+              <transformations>
+                <transformation>
+                  <name>replacement_transformation</name>
+                  <steps>
+                    <step>
+                      <name>output_1</name>
+                      <sql>insert into dm.replacement_summary select * from ods.replacement</sql>
+                    </step>
+                  </steps>
+                </transformation>
+              </transformations>
+            </repository>
+            """
+        ).strip(),
+        encoding="utf-8",
+    )
+
+    second_response = client.post("/api/scan", json={"repo_path": str(replacement_repo)})
+    assert second_response.status_code == 202
+    assert db_session.query(ObjectMetadata).count() == 0
+    assert db_session.query(ObjectMetadataColumn).count() == 0
 
 
 def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session):

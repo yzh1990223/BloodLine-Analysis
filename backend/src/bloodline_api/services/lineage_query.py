@@ -101,6 +101,8 @@ class LineageQueryService:
     def reset_graph_state(self, db: Session) -> None:
         """Clear persisted graph entities before a full rescan rebuild."""
 
+        db.execute(delete(ObjectMetadataColumn))
+        db.execute(delete(ObjectMetadata))
         db.execute(delete(Edge))
         db.execute(delete(Node))
         db.flush()
