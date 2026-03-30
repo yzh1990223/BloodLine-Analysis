@@ -29,7 +29,7 @@
 2. 读取指定库范围内的 MySQL 元数据
 3. 将元数据用于对象归一化与合并
 4. 区分 `data_table` 与 `table_view`
-5. 为对象节点补充字段元信息摘要
+5. 通过独立元数据表承载对象与字段元信息
 6. 为后续字段级血缘保留数据基础
 
 ## 3. 非目标
@@ -198,31 +198,92 @@
 
 ## 9. 数据模型设计
 
-第一版不强制新增独立 metadata 表，而是复用当前 `nodes.payload` 承载补充信息。
+本轮采用独立元数据表设计，而不是继续把完整 metadata 塞进 `nodes.payload`。
 
-建议在对象节点 payload 中补充：
+设计原则：
 
-- `database`
-- `table_name`
-- `is_view`
-- `columns`
+- `nodes` 继续承担图模型主键职责
+- `data_table / table_view` 节点通过 `node_id` 关联元数据主表
+- 字段明细通过独立字段表承载
+- 第一版只保存“当前最新元数据”，不做按 `scan_run` 的历史快照
+
+### 9.1 元数据主表
+
+建议新增：
+
+- `object_metadata`
+
+主要字段：
+
+- `id`
+  - 主键
+- `node_id`
+  - 关联 `nodes.id`
+  - 对 `data_table / table_view` 节点一对一
+- `database_name`
+- `object_name`
+- `object_kind`
+  - `table` / `view`
 - `comment`
 - `metadata_source`
-
-其中：
-
-- `metadata_source`
   - 当前可写为 `mysql_information_schema`
+- `updated_at`
 
-### 9.1 为什么先不拆表
+约束建议：
 
-当前更重要的是先跑通能力闭环：
+- `node_id` 唯一
+- `node_id` 外键关联 `nodes`
 
-- 读取
-- 归一化
-- 展示
+### 9.2 元数据字段表
 
-如果第一版就引入独立 metadata 表，会显著增加迁移、查询和同步复杂度。
+建议新增：
+
+- `object_metadata_columns`
+
+主要字段：
+
+- `id`
+  - 主键
+- `metadata_id`
+  - 外键关联 `object_metadata.id`
+- `column_name`
+- `data_type`
+- `ordinal_position`
+- `is_nullable`
+- `column_comment`
+
+约束建议：
+
+- `metadata_id + column_name` 唯一
+- `metadata_id` 外键关联 `object_metadata`
+
+### 9.3 `nodes` 与元数据表的职责边界
+
+`nodes` 中仍保留最小图对象信息：
+
+- `type`
+- `key`
+- `name`
+- `payload.object_type`
+
+但不再要求完整承载：
+
+- 字段列表
+- 表注释
+- 字段注释
+- 详细数据库元数据摘要
+
+这些内容应通过 `object_metadata` 与 `object_metadata_columns` 读取。
+
+### 9.4 为什么本轮采用独立表
+
+这样做的收益是：
+
+- 图模型与元数据模型解耦
+- 后续字段级能力有自然落点
+- 不需要把大量字段信息塞进 JSON
+- 查询和展示层更容易按需读取
+- 后续若要做 metadata 独立刷新，也更容易演进
 
 ## 10. 前端影响
 
@@ -233,7 +294,7 @@
 1. 对象详情页
    - 展示库名
    - 展示对象类型是否为视图
-   - 展示字段数量或字段摘要
+   - 通过元数据表展示字段数量或字段摘要
 2. 搜索结果页
    - 提高对象类型准确性
 3. 现有图页面
@@ -251,7 +312,12 @@
 
 ### 11.2 查询接口
 
-现有对象查询接口无需大改，但返回 payload 中会包含更多 metadata 字段。
+现有对象查询接口需要补充元数据读取逻辑：
+
+- 查询对象详情时，通过 `node_id` 查 `object_metadata`
+- 需要字段摘要时，再查 `object_metadata_columns`
+
+也就是说，metadata 不再以内联 JSON 为主，而是以关联查询为主。
 
 ## 12. 风险与应对
 
