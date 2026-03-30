@@ -17,6 +17,23 @@
 - `MVP1`：完成
 - `MVP1.1`：完成并形成稳定增强版基线
 
+## 1.1 阶段锚点
+
+本阶段对应的治理锚点如下：
+
+- Milestone：
+  - `MVP1.2`
+- 关键 Epic：
+  - [#1 epic: 扫描任务与可观测性增强](https://github.com/yzh1990223/BloodLine-Analysis/issues/1)
+  - [#10 epic: Java 代码解析增强](https://github.com/yzh1990223/BloodLine-Analysis/issues/10)
+- 关键治理 Epic：
+  - [#4 epic: GitHub 任务闭环落地](https://github.com/yzh1990223/BloodLine-Analysis/issues/4)
+
+说明：
+
+- `MVP1.1` 是能力基线的收口口径
+- `MVP1.2` 是当前 GitHub Project 中承接后续增强与治理推进的阶段 Milestone
+
 ## 2. MVP1 已完成范围
 
 ### 2.1 后端能力
@@ -141,6 +158,19 @@
 - 可以作为业务、数据、开发一起讨论血缘问题的可见基线
 - 可以沉淀出异常链路、闭环、误判样本，为下一阶段增强提供真实输入
 
+## 5.1 本阶段关键经验
+
+本阶段已经沉淀或验证的代表性经验包括：
+
+- [路径带空格导致扫描失败](/Users/nathan/Documents/GithubProjects/BloodLine%20Analysis/docs/experience/incidents/2026-03-29-path-with-space-breaks-scan.md)
+- [首页全量总览图不适合大图场景](/Users/nathan/Documents/GithubProjects/BloodLine%20Analysis/docs/experience/implementation/2026-03-29-full-overview-graph-does-not-scale.md)
+- [双前端 dev server 导致验证混乱](/Users/nathan/Documents/GithubProjects/BloodLine%20Analysis/docs/experience/operations/2026-03-29-dual-vite-dev-servers-cause-validation-confusion.md)
+- [GitHub Project 需要显式建模层级与状态](/Users/nathan/Documents/GithubProjects/BloodLine%20Analysis/docs/experience/governance/2026-03-29-github-project-needs-explicit-hierarchy-and-status-model.md)
+
+其中与阶段治理直接相关、已形成 follow-up 的经验有：
+
+- [#11 docs: 补 Project 初始化检查清单](https://github.com/yzh1990223/BloodLine-Analysis/issues/11)
+
 ## 6. 推荐收口口径
 
 对外可以这样描述当前阶段成果：
@@ -184,3 +214,18 @@
 3. 基于这些真实案例定义 `MVP2` 的第一批需求
 
 这样可以保证后续增强是“被真实问题驱动”的，而不是功能堆砌。
+
+## 8.1 下一阶段承接关系
+
+建议以下阶段关系保持显式引用：
+
+- 当前阶段收口：
+  - `MVP1.1`
+- 当前执行 Milestone：
+  - `MVP1.2`
+- 下一阶段主 Milestone：
+  - `MVP2.0`
+  - `MVP2.1`
+- 当前已进入下一阶段执行层的 Epic：
+  - [#3 epic: MVP2 - MySQL 元数据接入](https://github.com/yzh1990223/BloodLine-Analysis/issues/3)
+  - [#2 epic: MVP2 - 字段级血缘基础能力](https://github.com/yzh1990223/BloodLine-Analysis/issues/2)

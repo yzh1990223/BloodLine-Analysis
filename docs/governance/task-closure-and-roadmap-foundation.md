@@ -111,6 +111,14 @@ Roadmap 用来展示：
 - Epic 必须归属 Milestone
 - Task 尽量继承或同属对应 Milestone
 - Roadmap 视图优先展示 Epic 和关键任务，不必把所有细碎任务都摊到时间线
+- 阶段总结应反向引用对应 Milestone、关键 Epic、关键 Task 和关键经验
+
+阶段总结建议至少包含：
+
+- 本阶段对应的 Milestone
+- 本阶段关闭或完成中的关键 Epic / Task
+- 本阶段新增或被验证的关键经验
+- 下一阶段建议承接的 Milestone / Epic
 
 ## 五、与当前仓库治理的接入方式
 

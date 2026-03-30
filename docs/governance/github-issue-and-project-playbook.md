@@ -234,6 +234,12 @@
   - 关键任务
   - 关键经验
 
+推荐补充：
+
+- 本阶段对应的 Milestone 名称
+- 下一阶段建议承接的 Milestone / Epic
+- 若某条经验形成了 `Experience Follow-up`，应一并引用对应 issue
+
 ## 八、当前不做的重方案
 
 以下内容先列入后续 TODO，不在当前版本落地：
