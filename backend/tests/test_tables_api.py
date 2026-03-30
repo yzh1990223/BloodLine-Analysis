@@ -247,6 +247,25 @@ def test_job_and_java_module_detail_routes_return_compact_payloads(client):
     assert "table:app.order_dashboard" in write_table_keys
 
 
+def test_java_module_detail_uses_call_chain_to_reduce_lineage(client):
+    response = client.post(
+        "/api/scan",
+        json={
+            "java_source_root": "tests/fixtures/java_call_chain",
+        },
+    )
+
+    assert response.status_code == 202
+
+    java_response = client.get("/api/java-modules/java_module:OrderService")
+
+    assert java_response.status_code == 200
+    read_table_keys = {item["key"] for item in java_response.json()["read_tables"]}
+    write_table_keys = {item["key"] for item in java_response.json()["write_tables"]}
+    assert "table:ods.orders" in read_table_keys
+    assert "table:dm.user_order_summary" in write_table_keys
+
+
 def test_connected_lineage_endpoint_returns_directional_subgraph(client, db_session):
     legacy_orders = Node(
         type="data_object",

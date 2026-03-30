@@ -10,6 +10,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from bloodline_api.models import Edge, Node, ScanRun
+from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.repo_parser import RepoParser
 from bloodline_api.services.graph_builder import build_table_flows
@@ -374,15 +375,17 @@ class LineageQueryService:
         if java_source_root:
             java_root = _resolve_input_path(java_source_root)
             if java_root.is_dir():
-                for java_file in sorted(java_root.rglob("*.java")):
-                    java_result = JavaSqlParser().parse_file(java_file)
+                java_results = [JavaSqlParser().parse_file(java_file) for java_file in sorted(java_root.rglob("*.java"))]
+                reduced_java_results = reduce_java_modules(java_results)
+                for java_result in java_results:
+                    reduced_java_result = reduced_java_results[java_result.module_name]
                     java_node = self._get_or_create_node(
                         db,
                         "java_module",
                         f"java_module:{java_result.module_name}",
                         java_result.module_name,
                     )
-                    for table_name in java_result.read_tables:
+                    for table_name in reduced_java_result.read_tables:
                         object_key = _object_key("data_table", table_name)
                         table_node = object_nodes.get(object_key)
                         if table_node is None:
@@ -391,7 +394,7 @@ class LineageQueryService:
                             )
                             object_nodes[table_node.key] = table_node
                         self._ensure_edge(db, "READS", java_node.id, table_node.id)
-                    for table_name in java_result.write_tables:
+                    for table_name in reduced_java_result.write_tables:
                         object_key = _object_key("data_table", table_name)
                         table_node = object_nodes.get(object_key)
                         if table_node is None:
@@ -400,16 +403,15 @@ class LineageQueryService:
                             )
                             object_nodes[table_node.key] = table_node
                         self._ensure_edge(db, "WRITES", java_node.id, table_node.id)
-                    # Preserve statement boundaries so unrelated SQL literals in one class
-                    # do not collapse into false direct table-to-table flows.
-                    for statement in java_result.statements:
-                        statement_actor = f"{java_node.key}#{statement.statement_id}"
-                        for table_name in statement.read_tables:
+                    # Preserve method boundaries while allowing stable call-chain reduction.
+                    for method in reduced_java_result.methods.values():
+                        method_actor = f"{java_node.key}#{method.method_name}"
+                        for table_name in method.read_tables:
                             table_node = object_nodes[_object_key("data_table", table_name)]
-                            fact_edges.append(("READS", statement_actor, table_node.key))
-                        for table_name in statement.write_tables:
+                            fact_edges.append(("READS", method_actor, table_node.key))
+                        for table_name in method.write_tables:
                             table_node = object_nodes[_object_key("data_table", table_name)]
-                            fact_edges.append(("WRITES", statement_actor, table_node.key))
+                            fact_edges.append(("WRITES", method_actor, table_node.key))
 
         table_flows = build_table_flows(fact_edges)
         for source_key, target_key in table_flows:
