@@ -76,12 +76,23 @@ def _metadata_object_type(metadata_object: MySQLMetadataObject) -> str:
 def _serialize_object(node: Node) -> dict[str, Any]:
     """Serialize one lineage object with its frontend-visible type label."""
 
-    return {
+    payload = {
         "id": node.id,
         "key": node.key,
         "name": node.name,
         "object_type": node.payload.get("object_type", DEFAULT_OBJECT_TYPE),
     }
+    metadata = node.object_metadata
+    if metadata is not None:
+        payload["metadata"] = {
+            "database_name": metadata.database_name,
+            "object_name": metadata.object_name,
+            "object_kind": metadata.object_kind,
+            "comment": metadata.comment,
+            "column_count": len(metadata.columns),
+            "metadata_source": metadata.metadata_source,
+        }
+    return payload
 
 
 class LineageQueryService:

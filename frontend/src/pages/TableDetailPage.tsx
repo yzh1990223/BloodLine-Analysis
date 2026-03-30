@@ -73,6 +73,18 @@ export function TableDetailPage() {
         </div>
       </header>
 
+      {lineage?.table?.metadata ? (
+        <section className="panel">
+          <h2>元数据摘要</h2>
+          <div className="metadata-summary">
+            <p>数据库：{lineage.table.metadata.database_name}</p>
+            <p>对象种类：{lineage.table.metadata.object_kind}</p>
+            <p>字段数：{lineage.table.metadata.column_count}</p>
+            {lineage.table.metadata.comment ? <p>注释：{lineage.table.metadata.comment}</p> : null}
+          </div>
+        </section>
+      ) : null}
+
       {chainError ? <p className="error">{chainError}</p> : null}
       {!chainError && chainLoading ? <p>完整链路图加载中...</p> : null}
       {!chainError && !chainLoading && chainLineages.length > 0 ? (

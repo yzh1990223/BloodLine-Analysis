@@ -4,6 +4,16 @@ export interface TableSummary {
   key: string;
   name: string;
   object_type?: string;
+  metadata?: ObjectMetadataSummary;
+}
+
+export interface ObjectMetadataSummary {
+  database_name: string;
+  object_name: string;
+  object_kind: string;
+  comment: string | null;
+  column_count: number;
+  metadata_source: string;
 }
 
 export interface RelatedObjectSummary {

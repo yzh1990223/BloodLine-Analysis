@@ -20,7 +20,19 @@ vi.mock("../api", () => ({
   fetchConnectedLineage: () =>
     Promise.resolve({
       table_lineage: {
-        table: { id: 1, key: "table:ods.orders", name: "ods.orders" },
+        table: {
+          id: 1,
+          key: "table:ods.orders",
+          name: "ods.orders",
+          metadata: {
+            database_name: "ods",
+            object_name: "orders",
+            object_kind: "table",
+            comment: "订单表",
+            column_count: 8,
+            metadata_source: "mysql_information_schema",
+          },
+        },
         upstream_tables: [],
         downstream_tables: [],
         related_objects: { jobs: [], java_modules: [], transformations: [] },
@@ -54,6 +66,20 @@ test("table detail page shows a back button to the overview", async () => {
   );
 
   expect(await screen.findByRole("link", { name: "返回总览" })).toBeTruthy();
+});
+
+test("table detail page renders metadata summary when available", async () => {
+  render(
+    <MemoryRouter initialEntries={["/tables/table%3Aods.orders"]}>
+      <Routes>
+        <Route path="/tables/:tableKey" element={<TableDetailPage />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("数据库：ods")).toBeTruthy();
+  expect(screen.getByText("对象种类：table")).toBeTruthy();
+  expect(screen.getByText("字段数：8")).toBeTruthy();
 });
 
 test("impact page shows back buttons to detail and overview", async () => {

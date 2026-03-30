@@ -492,6 +492,17 @@ def test_scan_pipeline_merges_mysql_metadata_into_table_and_view_nodes(client, d
     assert metadata.metadata_source == "mysql_information_schema"
     assert [column.column_name for column in metadata.columns] == ["bond_code"]
 
+    detail = client.get("/api/tables/table:winddf.cbonddescription/lineage")
+    assert detail.status_code == 200
+    assert detail.json()["table"]["metadata"] == {
+        "database_name": "winddf",
+        "object_name": "cbonddescription",
+        "object_kind": "table",
+        "comment": "bond base table",
+        "column_count": 1,
+        "metadata_source": "mysql_information_schema",
+    }
+
 
 def test_scan_pipeline_reuses_metadata_node_for_bare_repo_table_names(client, monkeypatch, tmp_path):
     def fake_load(self, request):
