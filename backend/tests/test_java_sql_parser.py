@@ -32,7 +32,18 @@ def test_java_parser_emits_method_scoped_statement_facts():
     result = parser.parse_file(Path("tests/fixtures/java_method_model/OrderService.java"))
 
     assert result.methods["syncOrderSummary"].statement_ids == ["sql_0"]
+    assert "execute" in result.methods["syncOrderSummary"].calls
     assert "orderRepository.saveSummary" in result.methods["syncOrderSummary"].calls
+
+
+def test_java_parser_tracks_simple_service_to_repository_calls():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_method_model/OrderService.java"))
+
+    assert result.methods["syncOrderSummary"].calls == [
+        "orderRepository.saveSummary",
+        "execute",
+    ]
 
 
 def test_java_parser_extracts_tables_from_mybatis_annotations():

@@ -13,8 +13,6 @@ DECLARATION_METHOD_PATTERN = re.compile(
     r"(public|private|protected)?\s*[\w<>\[\]\.]+\s+(\w+)\s*\([^)]*\)\s*;",
     re.MULTILINE,
 )
-RECEIVER_CALL_PATTERN = re.compile(r"(\w+)\.(\w+)\s*\(")
-
 
 @dataclass(slots=True)
 class JavaMethodScope:
@@ -60,9 +58,3 @@ def parse_method_scopes(source: str) -> list[JavaMethodScope]:
             )
         )
     return scopes
-
-
-def extract_receiver_calls(method_body: str) -> list[str]:
-    """Extract stable receiver-qualified calls such as repository.saveSummary."""
-
-    return [f"{receiver}.{callee}" for receiver, callee in RECEIVER_CALL_PATTERN.findall(method_body)]

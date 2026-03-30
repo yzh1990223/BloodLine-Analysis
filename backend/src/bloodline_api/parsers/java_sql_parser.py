@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bloodline_api.connectors.java_source_reader import read_java_source
+from bloodline_api.parsers.java_call_graph import build_method_call_map
 from bloodline_api.parsers.java_mapper_parser import extract_annotated_method_sql
-from bloodline_api.parsers.java_symbol_parser import extract_receiver_calls
 from bloodline_api.parsers.java_symbol_parser import parse_method_scopes
 from bloodline_api.parsers.sql_table_extractor import extract_tables
 
@@ -58,11 +58,12 @@ class JavaSqlParser:
         writes: set[str] = set()
         statements: list[JavaSqlStatement] = []
         method_scopes = parse_method_scopes(source)
+        method_call_map = build_method_call_map(method_scopes)
         methods = {
             scope.method_name: JavaMethodFact(
                 method_name=scope.method_name,
                 statement_ids=[],
-                calls=extract_receiver_calls(scope.body),
+                calls=method_call_map.get(scope.method_name, []),
             )
             for scope in method_scopes
         }
