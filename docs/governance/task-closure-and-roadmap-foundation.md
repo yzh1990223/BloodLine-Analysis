@@ -28,6 +28,12 @@
 - `docs/experience/`
   - 承接关键问题、设计取舍和治理经验
 
+其中 `Bug` 不应游离在 Project 外：
+
+- 创建后应尽快加入 Project
+- 应至少补齐 `Type / Priority / Area / Workflow`
+- 修复完成后应同步到 `Done`
+
 ## 二、任务层级
 
 推荐使用三层任务模型：
@@ -81,7 +87,7 @@
 - `Target date`
 - `Iteration`
 
-推荐至少配置 4 个视图：
+推荐至少配置 5 个视图：
 
 1. `Task Board`
    - 按 `Status` 看当前流转状态
@@ -91,6 +97,9 @@
    - 按时间线查看 Epic 和关键任务
 4. `Blocked`
    - 聚焦阻塞项
+5. `Bug Board`
+   - 过滤 `Type = Bug`
+   - 按 `Workflow` 查看缺陷流转
 
 ## 四、Milestone 与 Roadmap
 

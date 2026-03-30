@@ -71,6 +71,8 @@
 要求：
 
 - 尽量给出复现路径
+- 必须加入 GitHub Project
+- 必须补齐 `Type / Priority / Area / Workflow`
 - 修复后应评估是否需要沉淀 incident 经验
 
 ### 4. Governance
@@ -146,6 +148,7 @@
 - Task / Bug / Governance / Experience Follow-up 应使用最贴近的 `Type`
 - `Area` 按主要负责区域填写，不必重复多选
 - `Priority` 由影响和紧急程度决定，不由工作量大小决定
+- Bug 修复完成后，应同步更新 `Status` 与 `Workflow`
 
 ## 五、状态流转建议
 
@@ -209,6 +212,20 @@
 - `MVP2.0`
 - `MVP2.1`
 - `Governance-Next`
+
+## 六点五、Bug Board 约定
+
+统一 Project 内建议额外配置一个 `Bug Board` 视图：
+
+- `Layout = Board`
+- `Column field = Workflow`
+- `Filter: Type is Bug`
+
+用途：
+
+- 聚焦当前所有缺陷项
+- 区分 `Planned / In Progress / Blocked / In Review / Done`
+- 避免 Bug 只存在于 issue 列表里而脱离执行闭环
 
 ## 七、与仓库文档的关系
 

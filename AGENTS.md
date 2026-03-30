@@ -63,6 +63,12 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 - 应先有关联的 GitHub Task / Issue
 - 提交信息中应包含 `#<issue_number>`
 
+任何需要持续跟踪的 Bug：
+
+- 必须进入 GitHub Project
+- 应补齐 `Type / Priority / Area / Workflow`
+- 修复完成后应同步更新 Project 状态
+
 ## 文档同步规则
 
 以下路径发生改动时，应检查文档同步：
