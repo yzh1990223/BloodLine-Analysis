@@ -54,7 +54,7 @@ export interface CycleGroupSummaryItem {
   group_key: string;
   table_count: number;
   edge_count: number;
-  tables: TableSummary[];
+  tables: Array<TableSummary & { cycle_edge_count: number }>;
 }
 
 export interface CycleGroupSummaryResponse {

@@ -90,16 +90,34 @@ test("object list page filters by type and links each object to its detail page"
 
 test("cycle analysis page shows grouped closed loops and links each table to detail", async () => {
   fetchCycleGroups.mockResolvedValue({
-    summary: { group_count: 2, table_count: 5, edge_count: 5 },
+    summary: { group_count: 2, table_count: 5, edge_count: 6 },
     items: [
       {
         group_key: "cycle_group:1",
         table_count: 3,
-        edge_count: 3,
+        edge_count: 4,
         tables: [
-          { id: 1, key: "table:dm.triangle_a", name: "dm.triangle_a", object_type: "data_table" },
-          { id: 2, key: "table:dm.triangle_b", name: "dm.triangle_b", object_type: "data_table" },
-          { id: 3, key: "table:dm.triangle_c", name: "dm.triangle_c", object_type: "data_table" },
+          {
+            id: 1,
+            key: "table:dm.triangle_a",
+            name: "dm.triangle_a",
+            object_type: "data_table",
+            cycle_edge_count: 3,
+          },
+          {
+            id: 3,
+            key: "table:dm.triangle_c",
+            name: "dm.triangle_c",
+            object_type: "data_table",
+            cycle_edge_count: 3,
+          },
+          {
+            id: 2,
+            key: "table:dm.triangle_b",
+            name: "dm.triangle_b",
+            object_type: "data_table",
+            cycle_edge_count: 2,
+          },
         ],
       },
       {
@@ -107,8 +125,20 @@ test("cycle analysis page shows grouped closed loops and links each table to det
         table_count: 2,
         edge_count: 2,
         tables: [
-          { id: 4, key: "table:dm.loop_left", name: "dm.loop_left", object_type: "data_table" },
-          { id: 5, key: "table:dm.loop_right", name: "dm.loop_right", object_type: "data_table" },
+          {
+            id: 4,
+            key: "table:dm.loop_left",
+            name: "dm.loop_left",
+            object_type: "data_table",
+            cycle_edge_count: 2,
+          },
+          {
+            id: 5,
+            key: "table:dm.loop_right",
+            name: "dm.loop_right",
+            object_type: "data_table",
+            cycle_edge_count: 2,
+          },
         ],
       },
     ],
@@ -127,7 +157,12 @@ test("cycle analysis page shows grouped closed loops and links each table to det
   expect(screen.getByText("闭环组 1")).toBeTruthy();
   expect(screen.getByText(/3 张表/)).toBeTruthy();
   expect(screen.getByText("dm.triangle_a")).toBeTruthy();
+  expect(screen.getAllByText("循环边次数：3").length).toBeGreaterThan(0);
   expect(screen.getByRole("link", { name: "查看 dm.triangle_a 详情" }).getAttribute("href")).toBe(
     "/tables/table%3Adm.triangle_a",
   );
+  const cycleLinks = screen.getAllByRole("link").filter((link) => link.getAttribute("href")?.startsWith("/tables/"));
+  expect(cycleLinks[0]?.textContent).toBe("dm.triangle_a");
+  expect(cycleLinks[1]?.textContent).toBe("dm.triangle_c");
+  expect(cycleLinks[2]?.textContent).toBe("dm.triangle_b");
 });

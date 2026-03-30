@@ -97,13 +97,16 @@ export function SelfLoopAnalysisPage() {
                   {item.tables.map((table) => (
                     <li key={table.key} className="object-list-item">
                       <div className="object-list-main object-loop-main">
-                        <Link
-                          to={`/tables/${encodeURIComponent(table.key)}`}
-                          aria-label={`查看 ${table.name} 详情`}
-                        >
-                          {table.name}
-                        </Link>
-                        <ObjectTypeBadge objectType={table.object_type} />
+                        <div className="object-list-main">
+                          <Link
+                            to={`/tables/${encodeURIComponent(table.key)}`}
+                            aria-label={`查看 ${table.name} 详情`}
+                          >
+                            {table.name}
+                          </Link>
+                          <ObjectTypeBadge objectType={table.object_type} />
+                        </div>
+                        <span className="self-loop-count">{`循环边次数：${table.cycle_edge_count}`}</span>
                       </div>
                       <span className="object-list-key">{table.key}</span>
                     </li>

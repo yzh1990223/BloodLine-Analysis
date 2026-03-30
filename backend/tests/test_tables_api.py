@@ -386,6 +386,7 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
             Edge(type="FLOWS_TO", src_node_id=triangle_a.id, dst_node_id=triangle_b.id, is_derived=True, payload={}),
             Edge(type="FLOWS_TO", src_node_id=triangle_b.id, dst_node_id=triangle_c.id, is_derived=True, payload={}),
             Edge(type="FLOWS_TO", src_node_id=triangle_c.id, dst_node_id=triangle_a.id, is_derived=True, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=triangle_a.id, dst_node_id=triangle_c.id, is_derived=True, payload={}),
             Edge(type="FLOWS_TO", src_node_id=self_loop_only.id, dst_node_id=self_loop_only.id, is_derived=True, payload={}),
         ]
     )
@@ -395,30 +396,33 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["summary"] == {"group_count": 2, "table_count": 5, "edge_count": 5}
+    assert payload["summary"] == {"group_count": 2, "table_count": 5, "edge_count": 6}
     assert payload["items"] == [
         {
             "group_key": "cycle_group:1",
             "table_count": 3,
-            "edge_count": 3,
+            "edge_count": 4,
             "tables": [
                 {
                     "id": triangle_a.id,
                     "key": "table:dm.triangle_a",
                     "name": "dm.triangle_a",
                     "object_type": "data_table",
-                },
-                {
-                    "id": triangle_b.id,
-                    "key": "table:dm.triangle_b",
-                    "name": "dm.triangle_b",
-                    "object_type": "data_table",
+                    "cycle_edge_count": 3,
                 },
                 {
                     "id": triangle_c.id,
                     "key": "table:dm.triangle_c",
                     "name": "dm.triangle_c",
                     "object_type": "data_table",
+                    "cycle_edge_count": 3,
+                },
+                {
+                    "id": triangle_b.id,
+                    "key": "table:dm.triangle_b",
+                    "name": "dm.triangle_b",
+                    "object_type": "data_table",
+                    "cycle_edge_count": 2,
                 },
             ],
         },
@@ -432,12 +436,14 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
                     "key": "table:dm.loop_left",
                     "name": "dm.loop_left",
                     "object_type": "data_table",
+                    "cycle_edge_count": 2,
                 },
                 {
                     "id": loop_right.id,
                     "key": "table:dm.loop_right",
                     "name": "dm.loop_right",
                     "object_type": "data_table",
+                    "cycle_edge_count": 2,
                 },
             ],
         },

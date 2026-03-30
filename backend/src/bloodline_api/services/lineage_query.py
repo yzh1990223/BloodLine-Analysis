@@ -544,10 +544,16 @@ class LineageQueryService:
             sorted(component_sets, key=lambda ids: (-len(ids), sorted(node_by_id[node_id].name for node_id in ids))),
             start=1,
         ):
-            tables = sorted((node_by_id[node_id] for node_id in component_ids), key=lambda node: (node.name, node.id))
+            tables = list(node_by_id[node_id] for node_id in component_ids)
+            cycle_edge_count_by_node: dict[int, int] = {node.id: 0 for node in tables}
             edge_count = sum(
                 1 for source_id, target_id in edge_pairs if source_id in component_ids and target_id in component_ids
             )
+            for source_id, target_id in edge_pairs:
+                if source_id in component_ids and target_id in component_ids:
+                    cycle_edge_count_by_node[source_id] += 1
+                    cycle_edge_count_by_node[target_id] += 1
+            tables.sort(key=lambda node: (-cycle_edge_count_by_node[node.id], node.name, node.id))
             total_edge_count += edge_count
             total_table_count += len(tables)
             items.append(
@@ -555,7 +561,13 @@ class LineageQueryService:
                     "group_key": f"cycle_group:{index}",
                     "table_count": len(tables),
                     "edge_count": edge_count,
-                    "tables": [_serialize_object(node) for node in tables],
+                    "tables": [
+                        {
+                            **_serialize_object(node),
+                            "cycle_edge_count": cycle_edge_count_by_node[node.id],
+                        }
+                        for node in tables
+                    ],
                 }
             )
 
