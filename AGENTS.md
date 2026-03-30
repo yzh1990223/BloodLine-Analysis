@@ -52,6 +52,7 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 重大 bug、治理失效、UAT 关键反馈或重要设计取舍出现后：
 
 - 应评估是否需要沉淀到 `docs/experience/`
+- 如果经验已形成明确后续动作且不适合在当前提交内直接完成，应建立 `Experience Follow-up` issue
 
 较大功能、治理升级或阶段性主题开始前：
 

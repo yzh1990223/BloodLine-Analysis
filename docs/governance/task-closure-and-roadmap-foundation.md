@@ -46,7 +46,7 @@
 
 - 每个 Epic 对应 1 份主要计划
 - 每个 Task 都应能明确判断完成与否
-- 经验沉淀不是游离动作，必要时可以形成单独的 follow-up 任务
+- 经验沉淀不是游离动作，必要时可以形成单独的 `Experience Follow-up` 任务
 
 ## 三、GitHub Project 建议模型
 
@@ -144,6 +144,18 @@ Roadmap 用来展示：
 - UAT 关键反馈
 
 则应继续按 `docs/experience/` 的规则沉淀经验；必要时形成单独的 follow-up 任务，并纳入下一阶段 Milestone 或 Roadmap。
+
+推荐使用 `Experience Follow-up` 的场景：
+
+- 某条经验已经明确了回灌动作，但不能在当前提交中直接做完
+- 某条经验需要跨多个任务或阶段追踪
+- 某条经验应进入 Project 看板被持续可视化管理
+
+推荐引用关系：
+
+- `Experience Follow-up` issue 必须引用具体经验条目路径
+- 若该经验来自某个 Epic / Task / Bug，应在 issue 描述里反向引用来源任务
+- 若该经验要进入未来阶段，应归属对应 Milestone
 
 ## 六、当前阶段的建议落地顺序
 

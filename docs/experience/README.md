@@ -71,6 +71,14 @@ YYYY-MM-DD-<topic>.md
 - `AGENTS.md`
 - backlog / 下一阶段需求
 
+如果某条经验已经形成明确回灌动作，但这些动作不会在当前提交内直接完成，推荐进一步建立 GitHub `Experience Follow-up` issue。
+
+推荐使用场景：
+
+- 需要跨多个提交继续落地
+- 需要进入 GitHub Project / Milestone / Roadmap 跟踪
+- 需要把“经验文档”转换成“可执行任务”
+
 第一版不要求所有经验都命中全部回灌目标，但至少要说明：
 
 - 是否需要回灌

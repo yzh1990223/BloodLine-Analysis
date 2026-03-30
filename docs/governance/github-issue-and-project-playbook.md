@@ -95,6 +95,18 @@
 - 必须关联 `docs/experience/` 中的条目
 - 必须写清回灌动作和完成标准
 
+推荐在以下情况下建立：
+
+- 当前提交只能记录经验，无法立刻完成回灌
+- 回灌动作需要进入未来阶段或未来迭代
+- 需要在 Project / Roadmap 中持续展示进度
+- 需要明确指定“这条经验什么时候才算闭环完成”
+
+当前仓库里的一个真实样例：
+
+- `#11 docs: 补 Project 初始化检查清单`
+  - 来自经验条目 `docs/experience/governance/2026-03-29-github-project-needs-explicit-hierarchy-and-status-model.md`
+
 ## 四、Project 字段填写建议
 
 推荐至少使用以下字段：
@@ -173,6 +185,17 @@
 - 当前无法继续推进
 - 必须写清阻塞原因
 
+### 7. Experience Follow-up 的特殊完成标准
+
+`Experience Follow-up` 不应只因为“经验文档已经写好”就视为完成。
+
+它通常应满足：
+
+- 经验条目已存在
+- issue 中定义的回灌动作已落地
+- 相关文档 / hooks / 测试 / backlog 已更新
+- 若属于某个 Epic 或阶段，Project 状态已同步
+
 ## 六、Milestone 与 Roadmap 约定
 
 - Epic 应优先进入 Milestone
@@ -198,6 +221,11 @@
 
 - Bug 修复后，如结论具有复用价值，应沉淀到 `docs/experience/`
 - Experience Follow-up issue 用于把经验继续回灌
+
+推荐关系：
+
+- 经验文档负责“记录和提炼”
+- Experience Follow-up issue 负责“执行和跟踪”
 
 ### 3. 阶段总结
 

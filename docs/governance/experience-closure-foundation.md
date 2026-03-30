@@ -64,6 +64,13 @@
 - `AGENTS.md`
 - backlog / 下一阶段需求
 
+如果回灌动作满足下面任一条件，推荐进一步建立 `Experience Follow-up` issue：
+
+- 回灌动作不会在当前提交中完成
+- 回灌动作需要跨多个提交或跨多个区域推进
+- 回灌动作需要进入 GitHub Project / Milestone / Roadmap 留痕
+- 回灌动作需要被后续阶段显式跟踪
+
 ## 第一版策略
 
 第一版不做：
@@ -96,3 +103,24 @@
 - 只提醒
 - 不阻断
 - 不自动创建经验草稿
+
+## 第三版补充：Experience Follow-up 使用流程
+
+当经验条目已经具备明确的“可复用结论”和“回灌动作”时，如果这些动作不能在当前工作流内直接收口，就不应只停留在文档里，而应升级成 GitHub 执行项。
+
+推荐动作如下：
+
+1. 先完成经验条目
+   - 写清 `可复用结论`
+   - 写清 `回灌动作`
+2. 判断是否需要建立 `Experience Follow-up`
+   - 若动作会跨阶段、跨提交或需要排期，建立 follow-up issue
+3. 在 `Experience Follow-up` issue 中引用经验条目
+   - `来源经验` 写具体文档路径
+   - `可复用结论` 写可稳定复用的判断
+   - `需要回灌到哪里` 写具体目标
+4. 把该 issue 纳入 GitHub Project
+   - 通过 `Type=Experience`
+   - 进入对应 Milestone / Roadmap
+5. 在完成回灌后关闭 issue
+   - 这时这条经验才算真正完成闭环
