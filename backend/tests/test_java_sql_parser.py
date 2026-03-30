@@ -33,3 +33,13 @@ def test_java_parser_emits_method_scoped_statement_facts():
 
     assert result.methods["syncOrderSummary"].statement_ids == ["sql_0"]
     assert "orderRepository.saveSummary" in result.methods["syncOrderSummary"].calls
+
+
+def test_java_parser_extracts_tables_from_mybatis_annotations():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_annotation_model/AnnotatedMapper.java"))
+
+    assert result.read_tables == ["ods.orders"]
+    assert result.write_tables == ["dm.user_order_summary"]
+    assert result.methods["loadOrders"].statement_ids == ["sql_0"]
+    assert result.methods["saveSummary"].statement_ids == ["sql_1"]

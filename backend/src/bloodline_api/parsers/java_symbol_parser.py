@@ -9,6 +9,10 @@ from dataclasses import dataclass
 METHOD_DEF_PATTERN = re.compile(
     r"(public|private|protected)\s+[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*\{"
 )
+DECLARATION_METHOD_PATTERN = re.compile(
+    r"(public|private|protected)?\s*[\w<>\[\]\.]+\s+(\w+)\s*\([^)]*\)\s*;",
+    re.MULTILINE,
+)
 RECEIVER_CALL_PATTERN = re.compile(r"(\w+)\.(\w+)\s*\(")
 
 
@@ -41,6 +45,18 @@ def parse_method_scopes(source: str) -> list[JavaMethodScope]:
                 body=source[match.end() : cursor - 1],
                 start_offset=match.start(),
                 end_offset=cursor,
+            )
+        )
+    for match in DECLARATION_METHOD_PATTERN.finditer(source):
+        method_name = match.group(2)
+        if any(scope.method_name == method_name for scope in scopes):
+            continue
+        scopes.append(
+            JavaMethodScope(
+                method_name=method_name,
+                body="",
+                start_offset=match.start(),
+                end_offset=match.end(),
             )
         )
     return scopes

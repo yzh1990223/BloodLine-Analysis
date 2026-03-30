@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from bloodline_api.connectors.java_source_reader import read_java_source
+from bloodline_api.parsers.java_mapper_parser import extract_annotated_method_sql
 from bloodline_api.parsers.java_symbol_parser import extract_receiver_calls
 from bloodline_api.parsers.java_symbol_parser import parse_method_scopes
 from bloodline_api.parsers.sql_table_extractor import extract_tables
@@ -14,6 +15,7 @@ from bloodline_api.parsers.sql_table_extractor import extract_tables
 # Only string literals that look like SQL statements are considered in the MVP.
 SQL_STRING_PATTERN = re.compile(r'"((?:\\.|[^"\\])*)"')
 SQL_START_PATTERN = re.compile(r"^(select|insert|update|delete|create)\b", re.IGNORECASE)
+ANNOTATION_PREFIX_PATTERN = re.compile(r"@\w+\($")
 
 
 @dataclass(slots=True)
@@ -55,18 +57,22 @@ class JavaSqlParser:
         reads: set[str] = set()
         writes: set[str] = set()
         statements: list[JavaSqlStatement] = []
+        method_scopes = parse_method_scopes(source)
         methods = {
             scope.method_name: JavaMethodFact(
                 method_name=scope.method_name,
                 statement_ids=[],
                 calls=extract_receiver_calls(scope.body),
             )
-            for scope in parse_method_scopes(source)
+            for scope in method_scopes
         }
 
         for index, match in enumerate(SQL_STRING_PATTERN.finditer(source)):
             sql = match.group(1).strip()
             if not SQL_START_PATTERN.match(sql):
+                continue
+            line_prefix = source[max(0, source.rfind("\n", 0, match.start()) + 1) : match.start()]
+            if ANNOTATION_PREFIX_PATTERN.search(line_prefix.strip()):
                 continue
             statement_id = f"sql_{index}"
             sql_reads, sql_writes = extract_tables(sql)
@@ -77,10 +83,31 @@ class JavaSqlParser:
                     write_tables=sorted(sql_writes),
                 )
             )
-            for scope in parse_method_scopes(source):
+            for scope in method_scopes:
                 if scope.start_offset <= match.start() <= scope.end_offset:
                     methods[scope.method_name].statement_ids.append(statement_id)
                     break
+            reads.update(sql_reads)
+            writes.update(sql_writes)
+
+        next_statement_index = len(statements)
+        for annotated in extract_annotated_method_sql(source):
+            statement_id = f"sql_{next_statement_index}"
+            next_statement_index += 1
+            sql_reads, sql_writes = extract_tables(annotated.sql)
+            if not sql_reads and not sql_writes:
+                continue
+            statements.append(
+                JavaSqlStatement(
+                    statement_id=statement_id,
+                    read_tables=sorted(sql_reads),
+                    write_tables=sorted(sql_writes),
+                )
+            )
+            methods.setdefault(
+                annotated.method_name,
+                JavaMethodFact(method_name=annotated.method_name, statement_ids=[], calls=[]),
+            ).statement_ids.append(statement_id)
             reads.update(sql_reads)
             writes.update(sql_writes)
 
