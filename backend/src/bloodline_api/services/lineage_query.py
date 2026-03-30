@@ -247,10 +247,12 @@ class LineageQueryService:
         repo_path: str | None = None,
         java_source_root: str | None = None,
         mysql_dsn: str | None = None,
+        metadata_databases: list[str] | None = None,
     ) -> ScanRun:
         """Run the MVP scan pipeline and persist the resulting graph state."""
 
         _ = mysql_dsn
+        _ = metadata_databases
         self.reset_graph_state(db)
         now = datetime.now(timezone.utc)
         scan_run = ScanRun(status="running", started_at=now)

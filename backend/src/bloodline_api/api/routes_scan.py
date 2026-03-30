@@ -22,6 +22,7 @@ class ScanRequest(BaseModel):
     repo_path: str | None = None
     java_source_root: str | None = None
     mysql_dsn: str | None = None
+    metadata_databases: list[str] | None = None
 
 
 def _scan_run_payload(scan_run: ScanRun | None) -> dict[str, object] | None:
@@ -48,6 +49,7 @@ def create_scan(request: ScanRequest | None = None, db: Session = Depends(get_db
         repo_path=None if request is None else request.repo_path,
         java_source_root=None if request is None else request.java_source_root,
         mysql_dsn=None if request is None else request.mysql_dsn,
+        metadata_databases=None if request is None else request.metadata_databases,
     )
     return {
         "scan_run_id": scan_run.id,

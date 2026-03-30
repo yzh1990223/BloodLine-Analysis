@@ -37,3 +37,17 @@ def test_scan_accepts_shell_escaped_space_in_repo_path(client):
 
     assert response.status_code == 202
     assert response.json()["status"] == "completed"
+
+
+def test_scan_accepts_metadata_database_whitelist(client):
+    response = client.post(
+        "/api/scan",
+        json={
+            "repo_path": str(Path("tests/fixtures/sample.repo.xml")),
+            "mysql_dsn": "mysql+pymysql://user:pass@localhost/default_db",
+            "metadata_databases": ["dm", "ods"],
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json()["inputs"]["metadata_databases"] == ["dm", "ods"]
