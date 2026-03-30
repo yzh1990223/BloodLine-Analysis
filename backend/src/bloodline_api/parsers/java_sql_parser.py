@@ -9,6 +9,7 @@ from pathlib import Path
 from bloodline_api.connectors.java_source_reader import read_java_source
 from bloodline_api.parsers.java_call_graph import build_method_call_map
 from bloodline_api.parsers.java_mapper_parser import extract_annotated_method_sql
+from bloodline_api.parsers.java_mapper_parser import extract_xml_method_sql
 from bloodline_api.parsers.java_symbol_parser import parse_method_scopes
 from bloodline_api.parsers.sql_table_extractor import extract_tables
 
@@ -92,7 +93,7 @@ class JavaSqlParser:
             writes.update(sql_writes)
 
         next_statement_index = len(statements)
-        for annotated in extract_annotated_method_sql(source):
+        for annotated in [*extract_annotated_method_sql(source), *extract_xml_method_sql(path)]:
             statement_id = f"sql_{next_statement_index}"
             next_statement_index += 1
             sql_reads, sql_writes = extract_tables(annotated.sql)

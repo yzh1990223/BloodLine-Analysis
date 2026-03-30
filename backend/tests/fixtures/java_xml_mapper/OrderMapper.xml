@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<mapper namespace="com.example.mapper.OrderMapper">
+  <select id="loadOrders">
+    select * from ods.orders
+  </select>
+  <insert id="saveSummary">
+    insert into dm.user_order_summary select * from ods.orders
+  </insert>
+</mapper>

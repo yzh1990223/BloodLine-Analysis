@@ -54,3 +54,13 @@ def test_java_parser_extracts_tables_from_mybatis_annotations():
     assert result.write_tables == ["dm.user_order_summary"]
     assert result.methods["loadOrders"].statement_ids == ["sql_0"]
     assert result.methods["saveSummary"].statement_ids == ["sql_1"]
+
+
+def test_java_parser_extracts_static_tables_from_xml_mapper():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_xml_mapper/OrderMapper.java"))
+
+    assert result.read_tables == ["ods.orders"]
+    assert result.write_tables == ["dm.user_order_summary"]
+    assert result.methods["loadOrders"].statement_ids == ["sql_0"]
+    assert result.methods["saveSummary"].statement_ids == ["sql_1"]
