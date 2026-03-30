@@ -1,4 +1,5 @@
 from bloodline_api.connectors.mysql_metadata import MySQLMetadataConfigurationError
+from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
 from bloodline_api.connectors.mysql_metadata import build_mysql_metadata_request
 
 
@@ -34,3 +35,59 @@ def test_mysql_metadata_request_requires_database_scope():
         assert "metadata_databases" in str(exc)
     else:
         raise AssertionError("expected MySQLMetadataConfigurationError")
+
+
+def test_mysql_metadata_loader_reads_tables_views_and_columns():
+    request = build_mysql_metadata_request(
+        mysql_dsn="mysql+pymysql://user:pass@localhost/default_db",
+        metadata_databases=["dm"],
+    )
+
+    loader = MySQLMetadataLoader(
+        row_fetcher=lambda _: [
+            {
+                "database_name": "dm",
+                "object_name": "user_order_summary",
+                "object_kind": "table",
+                "comment": "summary table",
+                "column_name": "user_id",
+                "data_type": "bigint",
+                "ordinal_position": 1,
+                "is_nullable": "NO",
+                "column_comment": "user id",
+            },
+            {
+                "database_name": "dm",
+                "object_name": "user_order_summary",
+                "object_kind": "table",
+                "comment": "summary table",
+                "column_name": "order_count",
+                "data_type": "int",
+                "ordinal_position": 2,
+                "is_nullable": "YES",
+                "column_comment": "orders",
+            },
+            {
+                "database_name": "dm",
+                "object_name": "user_order_view",
+                "object_kind": "view",
+                "comment": "summary view",
+                "column_name": "user_id",
+                "data_type": "bigint",
+                "ordinal_position": 1,
+                "is_nullable": "YES",
+                "column_comment": None,
+            },
+        ]
+    )
+
+    objects = loader.load(request)
+
+    assert [item.object_name for item in objects] == [
+        "user_order_summary",
+        "user_order_view",
+    ]
+    assert objects[0].object_kind == "table"
+    assert [column.column_name for column in objects[0].columns] == ["user_id", "order_count"]
+    assert objects[0].columns[0].is_nullable is False
+    assert objects[1].object_kind == "view"
