@@ -609,6 +609,34 @@ class LineageQueryService:
             "related_objects": self._related_objects(db, table),
         }
 
+    def get_connected_table_lineage(self, db: Session, table_key: str) -> dict[str, Any]:
+        """Return the detail-page directional lineage subgraph in one backend round-trip."""
+
+        table = db.scalar(select(Node).where(Node.type.in_(("table", "data_object")), Node.key == table_key))
+        if table is None:
+            return {"table_lineage": None, "items": []}
+
+        upstream_ids = self._collect_directional_table_ids(db, table.id, direction="upstream")
+        downstream_ids = self._collect_directional_table_ids(db, table.id, direction="downstream")
+        allowed_ids = upstream_ids | downstream_ids | {table.id}
+        raw_lineages = [
+            self.get_table_lineage(db, node.key)
+            for node in db.scalars(
+                select(Node)
+                .where(Node.id.in_(allowed_ids))
+                .order_by(Node.name.asc(), Node.id.asc())
+            ).all()
+        ]
+        items = self._collect_directional_lineages(
+            table.key,
+            [lineage for lineage in raw_lineages if lineage is not None],
+        )
+        table_lineage = next(
+            (item for item in items if item["table"] and item["table"]["key"] == table.key),
+            None,
+        )
+        return {"table_lineage": table_lineage, "items": items}
+
     def get_table_impact(self, db: Session, table_key: str) -> dict[str, Any] | None:
         """Extend direct lineage with downstream impact expansion."""
 
@@ -662,6 +690,166 @@ class LineageQueryService:
             frontier = next_frontier
 
         return impacted
+
+    def _collect_directional_table_ids(
+        self, db: Session, start_table_id: int, *, direction: str
+    ) -> set[int]:
+        """Walk only upstream or downstream FLOWS_TO edges from one table-like node."""
+
+        frontier = {start_table_id}
+        visited: set[int] = set()
+
+        while frontier:
+            if direction == "upstream":
+                next_ids = db.scalars(
+                    select(Edge.src_node_id).where(
+                        Edge.type == "FLOWS_TO",
+                        Edge.dst_node_id.in_(frontier),
+                    )
+                ).all()
+            else:
+                next_ids = db.scalars(
+                    select(Edge.dst_node_id).where(
+                        Edge.type == "FLOWS_TO",
+                        Edge.src_node_id.in_(frontier),
+                    )
+                ).all()
+
+            next_frontier: set[int] = set()
+            for node_id in next_ids:
+                if node_id == start_table_id or node_id in visited:
+                    continue
+                node = db.get(Node, node_id)
+                if node is None or node.type not in {"table", "data_object"}:
+                    continue
+                visited.add(node_id)
+                next_frontier.add(node_id)
+            frontier = next_frontier
+
+        return visited
+
+    def _collect_directional_lineages(
+        self, current_table_key: str, lineages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Keep only monotonic upstream/downstream paths around the current table."""
+
+        lineage_by_key: dict[str, dict[str, Any]] = {}
+        upstream_by_node: dict[str, set[str]] = {}
+        downstream_by_node: dict[str, set[str]] = {}
+
+        def ensure_direction_map(direction_map: dict[str, set[str]], key: str) -> set[str]:
+            if key not in direction_map:
+                direction_map[key] = set()
+            return direction_map[key]
+
+        for lineage in lineages:
+            table = lineage.get("table")
+            table_key = table.get("key") if table else None
+            if not table_key:
+                continue
+            lineage_by_key[table_key] = lineage
+            ensure_direction_map(upstream_by_node, table_key)
+            ensure_direction_map(downstream_by_node, table_key)
+
+            for upstream in lineage.get("upstream_tables", []):
+                ensure_direction_map(upstream_by_node, table_key).add(upstream["key"])
+                ensure_direction_map(downstream_by_node, upstream["key"]).add(table_key)
+
+            for downstream in lineage.get("downstream_tables", []):
+                ensure_direction_map(downstream_by_node, table_key).add(downstream["key"])
+                ensure_direction_map(upstream_by_node, downstream["key"]).add(table_key)
+
+        def walk_direction(seed: str, adjacency: dict[str, set[str]]) -> set[str]:
+            queue = [seed]
+            visited: set[str] = set()
+            while queue:
+                key = queue.pop(0)
+                if key in visited:
+                    continue
+                visited.add(key)
+                queue.extend(next_key for next_key in adjacency.get(key, set()) if next_key not in visited)
+            return visited
+
+        def collect_distance_map(seed: str, adjacency: dict[str, set[str]]) -> dict[str, int]:
+            queue: list[tuple[str, int]] = [(seed, 0)]
+            distance_by_node: dict[str, int] = {}
+            while queue:
+                key, distance = queue.pop(0)
+                if key in distance_by_node:
+                    continue
+                distance_by_node[key] = distance
+                queue.extend(
+                    (next_key, distance + 1)
+                    for next_key in adjacency.get(key, set())
+                    if next_key not in distance_by_node
+                )
+            return distance_by_node
+
+        upstream_reachable = walk_direction(current_table_key, upstream_by_node)
+        downstream_reachable = walk_direction(current_table_key, downstream_by_node)
+        upstream_distance = collect_distance_map(current_table_key, upstream_by_node)
+        downstream_distance = collect_distance_map(current_table_key, downstream_by_node)
+        allowed_keys = upstream_reachable | downstream_reachable | {current_table_key}
+
+        filtered_lineages: list[dict[str, Any]] = []
+        for key in sorted(allowed_keys):
+            lineage = lineage_by_key.get(key)
+            if lineage is None:
+                continue
+
+            def keep_upstream(table: dict[str, Any]) -> bool:
+                if table["key"] not in allowed_keys:
+                    return False
+                source_upstream_distance = upstream_distance.get(table["key"])
+                target_upstream_distance = upstream_distance.get(key)
+                if (
+                    source_upstream_distance is not None
+                    and target_upstream_distance is not None
+                    and source_upstream_distance == target_upstream_distance + 1
+                ):
+                    return True
+
+                source_downstream_distance = downstream_distance.get(table["key"])
+                target_downstream_distance = downstream_distance.get(key)
+                return (
+                    source_downstream_distance is not None
+                    and target_downstream_distance is not None
+                    and source_downstream_distance + 1 == target_downstream_distance
+                )
+
+            def keep_downstream(table: dict[str, Any]) -> bool:
+                if table["key"] not in allowed_keys:
+                    return False
+                source_upstream_distance = upstream_distance.get(key)
+                target_upstream_distance = upstream_distance.get(table["key"])
+                if (
+                    source_upstream_distance is not None
+                    and target_upstream_distance is not None
+                    and source_upstream_distance == target_upstream_distance + 1
+                ):
+                    return True
+
+                source_downstream_distance = downstream_distance.get(key)
+                target_downstream_distance = downstream_distance.get(table["key"])
+                return (
+                    source_downstream_distance is not None
+                    and target_downstream_distance is not None
+                    and source_downstream_distance + 1 == target_downstream_distance
+                )
+
+            filtered_lineages.append(
+                {
+                    **lineage,
+                    "upstream_tables": [
+                        table for table in lineage.get("upstream_tables", []) if keep_upstream(table)
+                    ],
+                    "downstream_tables": [
+                        table for table in lineage.get("downstream_tables", []) if keep_downstream(table)
+                    ],
+                }
+            )
+
+        return filtered_lineages
 
     def get_job_detail(self, db: Session, job_key: str) -> dict[str, Any] | None:
         """Return one job together with its called transformations and touched tables."""

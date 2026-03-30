@@ -55,6 +55,13 @@ def table_lineage(table_key: str, db: Session = Depends(get_db)) -> dict[str, ob
     }
 
 
+@router.get("/tables/{table_key:path}/connected-lineage")
+def connected_table_lineage(table_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Return the detail-page directional lineage subgraph in one backend round-trip."""
+
+    return lineage_query_service.get_connected_table_lineage(db, table_key)
+
+
 @router.get("/tables/{table_key:path}/impact")
 def table_impact(table_key: str, db: Session = Depends(get_db)) -> dict[str, object]:
     """Return direct lineage plus downstream impact expansion for one table."""

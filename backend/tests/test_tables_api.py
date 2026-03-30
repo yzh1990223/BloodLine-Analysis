@@ -237,7 +237,6 @@ def test_job_and_java_module_detail_routes_return_compact_payloads(client):
     assert job_response.status_code == 200
     assert job_response.json()["key"] == "job:daily_summary_job"
     assert job_response.json()["transformations"][0]["name"] == "load_user_order_summary"
-
     assert java_response.status_code == 200
     assert java_response.json()["key"] == "java_module:UserOrderDao"
     read_table_keys = {item["key"] for item in java_response.json()["read_tables"]}
@@ -246,6 +245,69 @@ def test_job_and_java_module_detail_routes_return_compact_payloads(client):
     assert "table:dm.user_order_summary" in read_table_keys
     assert "table:dm.user_order_summary" in write_table_keys
     assert "table:app.order_dashboard" in write_table_keys
+
+
+def test_connected_lineage_endpoint_returns_directional_subgraph(client, db_session):
+    legacy_orders = Node(
+        type="data_object",
+        key="source_table:legacy_orders",
+        name="legacy_orders",
+        payload={"object_type": "source_table"},
+    )
+    summary = Node(
+        type="data_object",
+        key="table:dm.user_order_summary",
+        name="dm.user_order_summary",
+        payload={"object_type": "data_table"},
+    )
+    dashboard = Node(
+        type="data_object",
+        key="table:app.order_dashboard",
+        name="app.order_dashboard",
+        payload={"object_type": "data_table"},
+    )
+    side_output = Node(
+        type="data_object",
+        key="table:dm.legacy_side_output",
+        name="dm.legacy_side_output",
+        payload={"object_type": "data_table"},
+    )
+    dashboard_source = Node(
+        type="data_object",
+        key="table:ods.dashboard_source",
+        name="ods.dashboard_source",
+        payload={"object_type": "data_table"},
+    )
+    db_session.add_all(
+        [legacy_orders, summary, dashboard, side_output, dashboard_source]
+    )
+    db_session.flush()
+    db_session.add_all(
+        [
+            Edge(type="FLOWS_TO", src_node_id=legacy_orders.id, dst_node_id=summary.id, is_derived=False, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=summary.id, dst_node_id=dashboard.id, is_derived=False, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=legacy_orders.id, dst_node_id=side_output.id, is_derived=False, payload={}),
+            Edge(type="FLOWS_TO", src_node_id=dashboard_source.id, dst_node_id=dashboard.id, is_derived=False, payload={}),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get("/api/tables/table:dm.user_order_summary/connected-lineage")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["table_lineage"]["table"]["key"] == "table:dm.user_order_summary"
+    returned_keys = {item["table"]["key"] for item in payload["items"]}
+    assert returned_keys == {
+        "source_table:legacy_orders",
+        "table:dm.user_order_summary",
+        "table:app.order_dashboard",
+    }
+    summary_item = next(
+        item for item in payload["items"] if item["table"]["key"] == "table:dm.user_order_summary"
+    )
+    assert [item["key"] for item in summary_item["upstream_tables"]] == ["source_table:legacy_orders"]
+    assert [item["key"] for item in summary_item["downstream_tables"]] == ["table:app.order_dashboard"]
 
 
 def test_scan_pipeline_persists_source_node_types_and_job_sql_objects(client, tmp_path):

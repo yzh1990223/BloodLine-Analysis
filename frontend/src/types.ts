@@ -26,6 +26,11 @@ export interface TableLineageResponse {
   related_objects: RelatedObjects;
 }
 
+export interface ConnectedLineageResponse {
+  table_lineage: TableLineageResponse | null;
+  items: TableLineageResponse[];
+}
+
 export interface ImpactedTable extends TableSummary {
   hop: number;
 }

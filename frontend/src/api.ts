@@ -1,4 +1,5 @@
 import {
+  ConnectedLineageResponse,
   CreateScanResponse,
   CycleGroupSummaryResponse,
   LatestScanRunResponse,
@@ -34,6 +35,13 @@ export function fetchTableLineage(tableKey: string): Promise<TableLineageRespons
   /** Load direct upstream/downstream lineage for one table. */
   return requestJson<TableLineageResponse>(
     `/api/tables/${encodeURIComponent(tableKey)}/lineage`,
+  );
+}
+
+export function fetchConnectedLineage(tableKey: string): Promise<ConnectedLineageResponse> {
+  /** Load the detail-page directional lineage subgraph in one request. */
+  return requestJson<ConnectedLineageResponse>(
+    `/api/tables/${encodeURIComponent(tableKey)}/connected-lineage`,
   );
 }
 

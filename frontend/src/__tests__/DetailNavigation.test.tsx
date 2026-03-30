@@ -17,16 +17,22 @@ afterEach(() => {
 });
 
 vi.mock("../api", () => ({
-  searchTables: () =>
+  fetchConnectedLineage: () =>
     Promise.resolve({
-      items: [{ id: 1, key: "table:ods.orders", name: "ods.orders", object_type: "data_table" }],
-    }),
-  fetchTableLineage: () =>
-    Promise.resolve({
-      table: { id: 1, key: "table:ods.orders", name: "ods.orders" },
-      upstream_tables: [],
-      downstream_tables: [],
-      related_objects: { jobs: [], java_modules: [], transformations: [] },
+      table_lineage: {
+        table: { id: 1, key: "table:ods.orders", name: "ods.orders" },
+        upstream_tables: [],
+        downstream_tables: [],
+        related_objects: { jobs: [], java_modules: [], transformations: [] },
+      },
+      items: [
+        {
+          table: { id: 1, key: "table:ods.orders", name: "ods.orders" },
+          upstream_tables: [],
+          downstream_tables: [],
+          related_objects: { jobs: [], java_modules: [], transformations: [] },
+        },
+      ],
     }),
   fetchTableImpact: () =>
     Promise.resolve({
