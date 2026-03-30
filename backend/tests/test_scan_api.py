@@ -40,14 +40,29 @@ def test_scan_accepts_shell_escaped_space_in_repo_path(client):
 
 
 def test_scan_accepts_metadata_database_whitelist(client):
-    response = client.post(
-        "/api/scan",
-        json={
-            "repo_path": str(Path("tests/fixtures/sample.repo.xml")),
-            "mysql_dsn": "mysql+pymysql://user:pass@localhost/default_db",
-            "metadata_databases": ["dm", "ods"],
-        },
-    )
+    loaded_requests = []
+
+    def fake_load(self, request):
+        loaded_requests.append(request)
+        return []
+
+    from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
+
+    original_load = MySQLMetadataLoader.load
+    MySQLMetadataLoader.load = fake_load
+    try:
+        response = client.post(
+            "/api/scan",
+            json={
+                "repo_path": str(Path("tests/fixtures/sample.repo.xml")),
+                "mysql_dsn": "mysql+pymysql://user:pass@localhost/default_db",
+                "metadata_databases": ["dm", "ods"],
+            },
+        )
+    finally:
+        MySQLMetadataLoader.load = original_load
 
     assert response.status_code == 202
     assert response.json()["inputs"]["metadata_databases"] == ["dm", "ods"]
+    assert len(loaded_requests) == 1
+    assert loaded_requests[0].databases == ["dm", "ods"]

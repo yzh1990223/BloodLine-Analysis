@@ -1,8 +1,11 @@
 from pathlib import Path
 from textwrap import dedent
 
+from bloodline_api.connectors.mysql_metadata import MySQLMetadataColumn
+from bloodline_api.connectors.mysql_metadata import MySQLMetadataObject
 from bloodline_api.models import Edge
 from bloodline_api.models import Node
+from bloodline_api.models import ObjectMetadata
 
 
 def test_search_tables_returns_matching_nodes(client, db_session):
@@ -419,6 +422,153 @@ def test_scan_pipeline_persists_source_node_types_and_job_sql_objects(client, tm
     lineage = client.get("/api/tables/table:stg.orders_excel/lineage")
     assert lineage.status_code == 200
     assert lineage.json()["upstream_tables"][0]["object_type"] == "source_file"
+
+
+def test_scan_pipeline_merges_mysql_metadata_into_table_and_view_nodes(client, db_session, monkeypatch):
+    def fake_load(self, request):
+        assert request.databases == ["winddf"]
+        return [
+            MySQLMetadataObject(
+                database_name="winddf",
+                object_name="cbonddescription",
+                object_kind="table",
+                comment="bond base table",
+                columns=[
+                    MySQLMetadataColumn(
+                        column_name="bond_code",
+                        data_type="varchar",
+                        ordinal_position=1,
+                        is_nullable=False,
+                        column_comment="债券代码",
+                    )
+                ],
+            ),
+            MySQLMetadataObject(
+                database_name="winddf",
+                object_name="cbond_view",
+                object_kind="view",
+                comment="bond view",
+                columns=[
+                    MySQLMetadataColumn(
+                        column_name="bond_name",
+                        data_type="varchar",
+                        ordinal_position=1,
+                        is_nullable=True,
+                        column_comment="债券名称",
+                    )
+                ],
+            ),
+        ]
+
+    monkeypatch.setattr(
+        "bloodline_api.connectors.mysql_metadata.MySQLMetadataLoader.load",
+        fake_load,
+    )
+
+    response = client.post(
+        "/api/scan",
+        json={
+            "repo_path": "tests/fixtures/sample.repo.xml",
+            "mysql_dsn": "mysql+pymysql://user:pass@localhost/winddf",
+            "metadata_databases": ["winddf"],
+        },
+    )
+
+    assert response.status_code == 202
+
+    table_node = db_session.query(Node).filter(Node.key == "table:winddf.cbonddescription").one_or_none()
+    assert table_node is not None
+    assert table_node.payload["object_type"] == "data_table"
+
+    view_node = db_session.query(Node).filter(Node.key == "view:winddf.cbond_view").one_or_none()
+    assert view_node is not None
+    assert view_node.payload["object_type"] == "table_view"
+
+    metadata = db_session.query(ObjectMetadata).filter(ObjectMetadata.node_id == table_node.id).one_or_none()
+    assert metadata is not None
+    assert metadata.database_name == "winddf"
+    assert metadata.object_name == "cbonddescription"
+    assert metadata.object_kind == "table"
+    assert metadata.metadata_source == "mysql_information_schema"
+    assert [column.column_name for column in metadata.columns] == ["bond_code"]
+
+
+def test_scan_pipeline_reuses_metadata_node_for_bare_repo_table_names(client, monkeypatch, tmp_path):
+    def fake_load(self, request):
+        return [
+            MySQLMetadataObject(
+                database_name="winddf",
+                object_name="cbonddescription",
+                object_kind="table",
+                comment="bond base table",
+                columns=[
+                    MySQLMetadataColumn(
+                        column_name="bond_code",
+                        data_type="varchar",
+                        ordinal_position=1,
+                        is_nullable=False,
+                        column_comment=None,
+                    )
+                ],
+            )
+        ]
+
+    monkeypatch.setattr(
+        "bloodline_api.connectors.mysql_metadata.MySQLMetadataLoader.load",
+        fake_load,
+    )
+
+    repo_path = tmp_path / "metadata_merge.repo.xml"
+    repo_path.write_text(
+        dedent(
+            """
+            <repository>
+              <jobs>
+                <job>
+                  <name>metadata_job</name>
+                  <transformation>metadata_transformation</transformation>
+                </job>
+              </jobs>
+              <transformations>
+                <transformation>
+                  <name>metadata_transformation</name>
+                  <steps>
+                    <step>
+                      <name>input_1</name>
+                      <sql>select * from cbonddescription</sql>
+                    </step>
+                    <step>
+                      <name>output_1</name>
+                      <sql>insert into dm.metadata_target select * from cbonddescription</sql>
+                    </step>
+                  </steps>
+                </transformation>
+              </transformations>
+            </repository>
+            """
+        ).strip(),
+        encoding="utf-8",
+    )
+
+    response = client.post(
+        "/api/scan",
+        json={
+            "repo_path": str(repo_path),
+            "mysql_dsn": "mysql+pymysql://user:pass@localhost/winddf",
+        },
+    )
+
+    assert response.status_code == 202
+
+    search = client.get("/api/tables/search", params={"q": "cbonddescription"})
+    keys = {item["key"] for item in search.json()["items"]}
+    assert "table:winddf.cbonddescription" in keys
+    assert "table:cbonddescription" not in keys
+
+    lineage = client.get("/api/tables/table:dm.metadata_target/lineage")
+    assert lineage.status_code == 200
+    upstream_keys = {item["key"] for item in lineage.json()["upstream_tables"]}
+    assert "table:winddf.cbonddescription" in upstream_keys
 
 
 def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session):

@@ -9,7 +9,10 @@ from typing import Any
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from bloodline_api.models import Edge, Node, ScanRun
+from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
+from bloodline_api.connectors.mysql_metadata import MySQLMetadataObject
+from bloodline_api.connectors.mysql_metadata import build_mysql_metadata_request
+from bloodline_api.models import Edge, Node, ObjectMetadata, ObjectMetadataColumn, ScanRun
 from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.repo_parser import RepoParser
@@ -50,6 +53,24 @@ def _object_key(object_type: str, name: str) -> str:
     if object_type == "table_view":
         return f"view:{name}"
     return f"{object_type}:{name}"
+
+
+def _normalize_object_name(name: str) -> str:
+    """Normalize metadata-backed object names to lowercase dotted identifiers."""
+
+    return name.strip().lower()
+
+
+def _metadata_object_name(metadata_object: MySQLMetadataObject) -> str:
+    """Build the fully qualified graph object name for one metadata object."""
+
+    return _normalize_object_name(f"{metadata_object.database_name}.{metadata_object.object_name}")
+
+
+def _metadata_object_type(metadata_object: MySQLMetadataObject) -> str:
+    """Translate connector object kinds into graph-facing object types."""
+
+    return "table_view" if metadata_object.object_kind == "view" else "data_table"
 
 
 def _serialize_object(node: Node) -> dict[str, Any]:
@@ -107,6 +128,111 @@ class LineageQueryService:
         db.add(node)
         db.flush()
         return node
+
+    def _upsert_object_metadata(
+        self,
+        db: Session,
+        *,
+        node: Node,
+        metadata_object: MySQLMetadataObject,
+    ) -> None:
+        """Persist the latest metadata snapshot for one table or view node."""
+
+        metadata = node.object_metadata
+        if metadata is None:
+            metadata = ObjectMetadata(
+                node=node,
+                database_name=metadata_object.database_name,
+                object_name=metadata_object.object_name,
+                object_kind=metadata_object.object_kind,
+                comment=metadata_object.comment,
+                metadata_source="mysql_information_schema",
+            )
+            db.add(metadata)
+            db.flush()
+        else:
+            metadata.database_name = metadata_object.database_name
+            metadata.object_name = metadata_object.object_name
+            metadata.object_kind = metadata_object.object_kind
+            metadata.comment = metadata_object.comment
+            metadata.metadata_source = "mysql_information_schema"
+
+        metadata.columns[:] = [
+            ObjectMetadataColumn(
+                column_name=column.column_name,
+                data_type=column.data_type,
+                ordinal_position=column.ordinal_position,
+                is_nullable=column.is_nullable,
+                column_comment=column.column_comment,
+            )
+            for column in metadata_object.columns
+        ]
+        db.flush()
+
+    def _load_mysql_metadata_nodes(
+        self,
+        db: Session,
+        *,
+        mysql_dsn: str | None,
+        metadata_databases: list[str] | None,
+        object_nodes: dict[str, Node],
+    ) -> dict[str, Node]:
+        """Load metadata-backed nodes and build alias lookups for conservative merges."""
+
+        request = build_mysql_metadata_request(
+            mysql_dsn=mysql_dsn,
+            metadata_databases=metadata_databases,
+        )
+        if request is None:
+            return {}
+
+        metadata_objects = MySQLMetadataLoader().load(request)
+        bare_name_candidates: dict[str, list[Node]] = {}
+        alias_nodes: dict[str, Node] = {}
+
+        for metadata_object in metadata_objects:
+            object_name = _metadata_object_name(metadata_object)
+            object_type = _metadata_object_type(metadata_object)
+            node = self._get_or_create_object_node(db, name=object_name, object_type=object_type)
+            object_nodes[node.key] = node
+            alias_nodes[object_name] = node
+            bare_name_candidates.setdefault(_normalize_object_name(metadata_object.object_name), []).append(node)
+            self._upsert_object_metadata(db, node=node, metadata_object=metadata_object)
+
+        for bare_name, nodes in bare_name_candidates.items():
+            if len(nodes) == 1:
+                alias_nodes[bare_name] = nodes[0]
+
+        return alias_nodes
+
+    def _resolve_object_node(
+        self,
+        db: Session,
+        *,
+        name: str,
+        object_type: str,
+        object_nodes: dict[str, Node],
+        metadata_aliases: dict[str, Node],
+    ) -> Node:
+        """Resolve one lineage object, reusing metadata-backed nodes when safely possible."""
+
+        normalized_name = _normalize_object_name(name)
+        if object_type == "data_table":
+            metadata_node = metadata_aliases.get(normalized_name)
+            if metadata_node is not None:
+                object_nodes[metadata_node.key] = metadata_node
+                return metadata_node
+
+        object_key = _object_key(object_type, normalized_name)
+        table_node = object_nodes.get(object_key)
+        if table_node is None:
+            table_node = self._get_or_create_object_node(
+                db,
+                name=normalized_name,
+                object_type=object_type,
+            )
+            object_nodes[table_node.key] = table_node
+        return table_node
 
     def _ensure_edge(
         self,
@@ -261,6 +387,12 @@ class LineageQueryService:
 
         fact_edges: list[tuple[str, str, str]] = []
         object_nodes: dict[str, Node] = {}
+        metadata_aliases = self._load_mysql_metadata_nodes(
+            db,
+            mysql_dsn=mysql_dsn,
+            metadata_databases=metadata_databases,
+            object_nodes=object_nodes,
+        )
 
         if repo_path:
             repo_result = RepoParser().parse_file(_resolve_input_path(repo_path))
@@ -288,14 +420,13 @@ class LineageQueryService:
                 if transformation_node is None:
                     continue
                 for object_ref in table_names:
-                    table_node = object_nodes.get(_object_key(object_ref.object_type, object_ref.name))
-                    if table_node is None:
-                        table_node = self._get_or_create_object_node(
-                            db,
-                            name=object_ref.name,
-                            object_type=object_ref.object_type,
-                        )
-                        object_nodes[table_node.key] = table_node
+                    table_node = self._resolve_object_node(
+                        db,
+                        name=object_ref.name,
+                        object_type=object_ref.object_type,
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
+                    )
                     self._ensure_edge(
                         db,
                         "READS",
@@ -311,14 +442,13 @@ class LineageQueryService:
                 if transformation_node is None:
                     continue
                 for object_ref in table_names:
-                    table_node = object_nodes.get(_object_key(object_ref.object_type, object_ref.name))
-                    if table_node is None:
-                        table_node = self._get_or_create_object_node(
-                            db,
-                            name=object_ref.name,
-                            object_type=object_ref.object_type,
-                        )
-                        object_nodes[table_node.key] = table_node
+                    table_node = self._resolve_object_node(
+                        db,
+                        name=object_ref.name,
+                        object_type=object_ref.object_type,
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
+                    )
                     self._ensure_edge(
                         db,
                         "WRITES",
@@ -334,14 +464,13 @@ class LineageQueryService:
                 if job_node is None:
                     continue
                 for object_ref in object_refs:
-                    table_node = object_nodes.get(_object_key(object_ref.object_type, object_ref.name))
-                    if table_node is None:
-                        table_node = self._get_or_create_object_node(
-                            db,
-                            name=object_ref.name,
-                            object_type=object_ref.object_type,
-                        )
-                        object_nodes[table_node.key] = table_node
+                    table_node = self._resolve_object_node(
+                        db,
+                        name=object_ref.name,
+                        object_type=object_ref.object_type,
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
+                    )
                     self._ensure_edge(
                         db,
                         "READS",
@@ -357,14 +486,13 @@ class LineageQueryService:
                 if job_node is None:
                     continue
                 for object_ref in object_refs:
-                    table_node = object_nodes.get(_object_key(object_ref.object_type, object_ref.name))
-                    if table_node is None:
-                        table_node = self._get_or_create_object_node(
-                            db,
-                            name=object_ref.name,
-                            object_type=object_ref.object_type,
-                        )
-                        object_nodes[table_node.key] = table_node
+                    table_node = self._resolve_object_node(
+                        db,
+                        name=object_ref.name,
+                        object_type=object_ref.object_type,
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
+                    )
                     self._ensure_edge(
                         db,
                         "WRITES",
@@ -388,31 +516,43 @@ class LineageQueryService:
                         java_result.module_name,
                     )
                     for table_name in reduced_java_result.read_tables:
-                        object_key = _object_key("data_table", table_name)
-                        table_node = object_nodes.get(object_key)
-                        if table_node is None:
-                            table_node = self._get_or_create_object_node(
-                                db, name=table_name, object_type="data_table"
-                            )
-                            object_nodes[table_node.key] = table_node
+                        table_node = self._resolve_object_node(
+                            db,
+                            name=table_name,
+                            object_type="data_table",
+                            object_nodes=object_nodes,
+                            metadata_aliases=metadata_aliases,
+                        )
                         self._ensure_edge(db, "READS", java_node.id, table_node.id)
                     for table_name in reduced_java_result.write_tables:
-                        object_key = _object_key("data_table", table_name)
-                        table_node = object_nodes.get(object_key)
-                        if table_node is None:
-                            table_node = self._get_or_create_object_node(
-                                db, name=table_name, object_type="data_table"
-                            )
-                            object_nodes[table_node.key] = table_node
+                        table_node = self._resolve_object_node(
+                            db,
+                            name=table_name,
+                            object_type="data_table",
+                            object_nodes=object_nodes,
+                            metadata_aliases=metadata_aliases,
+                        )
                         self._ensure_edge(db, "WRITES", java_node.id, table_node.id)
                     # Preserve method boundaries while allowing stable call-chain reduction.
                     for method in reduced_java_result.methods.values():
                         method_actor = f"{java_node.key}#{method.method_name}"
                         for table_name in method.read_tables:
-                            table_node = object_nodes[_object_key("data_table", table_name)]
+                            table_node = self._resolve_object_node(
+                                db,
+                                name=table_name,
+                                object_type="data_table",
+                                object_nodes=object_nodes,
+                                metadata_aliases=metadata_aliases,
+                            )
                             fact_edges.append(("READS", method_actor, table_node.key))
                         for table_name in method.write_tables:
-                            table_node = object_nodes[_object_key("data_table", table_name)]
+                            table_node = self._resolve_object_node(
+                                db,
+                                name=table_name,
+                                object_type="data_table",
+                                object_nodes=object_nodes,
+                                metadata_aliases=metadata_aliases,
+                            )
                             fact_edges.append(("WRITES", method_actor, table_node.key))
 
         table_flows = build_table_flows(fact_edges)
