@@ -98,14 +98,16 @@
 当前重点覆盖：
 
 - JDBC / 模板类静态 SQL
-- MyBatis 或硬编码 SQL
+- Spring 风格 `Service / Repository / DAO` 的最小方法级调用关系
+- MyBatis 注解 SQL
+- 同 stem XML Mapper 的最小静态 SQL
 - 可还原的简单字符串 SQL
 
 当前仍弱覆盖：
 
 - 高动态 SQL
 - ORM 自动生成 SQL 的完整还原
-- 方法级、字段级链路
+- 字段级链路
 
 ### 5.3 元数据加载器
 

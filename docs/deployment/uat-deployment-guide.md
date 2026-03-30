@@ -8,6 +8,10 @@
 
 - 解析 Kettle `.repo` 文件
 - 解析 Java 源码目录中的静态 SQL
+- 支持最小 Java 方法调用图归并
+- 支持一部分 MyBatis 场景：
+  - 注解 SQL
+  - 同 stem XML Mapper 的最小静态 SQL
 - 生成对象级 / 表级血缘和最多 3 跳影响分析
 - 区分 `data_table`、`source_table`、`source_file`
 - 页面化触发扫描、对象浏览、详情查看和闭环分析
@@ -18,6 +22,7 @@
 - 字段级血缘
 - 异步扫描任务队列
 - 权限与多用户管理
+- 高动态 MyBatis XML 与 ORM 自动生成 SQL 的完整还原
 
 因此本轮 UAT 的重点仍然是：
 

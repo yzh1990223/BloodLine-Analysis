@@ -6,6 +6,10 @@
 
 - 解析 Kettle `.repo` 文件中的 Job、Transformation、数据库输入输出步骤和部分 Job SQL
 - 解析 Java 源码中的静态 SQL，识别读写表关系
+- 支持 Java 方法级事实与最小调用图归并
+- 支持一部分 MyBatis 场景：
+  - 注解 SQL
+  - 同 stem XML Mapper 的最小静态 SQL
 - 统一构建对象级血缘图，并派生 `FLOWS_TO` 表级关系
 - 支持对象类型区分：
   - `data_table`
@@ -25,6 +29,7 @@
 - 当前只做到对象级 / 表级血缘，未实现字段级血缘
 - 扫描是同步执行的，每次重新扫描都会先清空旧图，再全量重建
 - 动态 SQL、自定义 Step、复杂脚本类处理仍然是部分覆盖
+- 高动态 MyBatis XML、ORM 自动生成 SQL 和字段级链路仍未覆盖
 
 ## 项目结构
 
