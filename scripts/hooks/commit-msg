@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/hooks/issue-requirement.sh
+source "$SCRIPT_DIR/issue-requirement.sh"
+
 message_file="${1:-}"
 message="$(cat "$message_file")"
 
@@ -9,3 +13,18 @@ if [[ ! "$message" =~ ^(feat|fix|docs|refactor|test|chore|style):\ .+ ]]; then
   exit 1
 fi
 
+if ! requires_issue_link; then
+  exit 0
+fi
+
+if [[ ! "$message" =~ \#[0-9]+ ]]; then
+  echo "[commit-msg] 非极小改动必须在提交信息中包含关联 Issue，例如：feat: 增加循环边次数 #12"
+  exit 1
+fi
+
+if issue_ref="$(current_issue_ref 2>/dev/null)"; then
+  if ! printf '%s' "$message" | grep -Eq "(^|[[:space:]])#${issue_ref}([^0-9]|$)"; then
+    echo "[commit-msg] 当前仓库已关联 Issue #${issue_ref}，请在提交信息中包含相同编号。"
+    exit 1
+  fi
+fi

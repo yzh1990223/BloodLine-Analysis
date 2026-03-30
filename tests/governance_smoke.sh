@@ -29,6 +29,9 @@ bash -n scripts/hooks/pre-commit
 bash -n scripts/hooks/pre-push
 bash -n scripts/hooks/commit-msg
 bash -n scripts/hooks/post-commit
+bash -n scripts/hooks/issue-link-check.sh
+bash -n scripts/hooks/issue-requirement.sh
+bash -n scripts/hooks/set-issue-ref.sh
 bash -n scripts/hooks/doc-sync-check.sh
 bash -n scripts/hooks/schema-migration-check.sh
 bash -n scripts/hooks/protected-files-check.sh

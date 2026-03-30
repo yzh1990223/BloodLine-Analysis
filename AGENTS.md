@@ -57,6 +57,11 @@ BloodLine Analysis 是一个面向 Kettle `.repo` 文件与 Java 源码目录的
 
 - 应评估是否需要用 Epic / Task / Milestone / Roadmap 形成任务闭环
 
+任何非极小改动开始实现前：
+
+- 应先有关联的 GitHub Task / Issue
+- 提交信息中应包含 `#<issue_number>`
+
 ## 文档同步规则
 
 以下路径发生改动时，应检查文档同步：

@@ -24,6 +24,10 @@ git ls-files --others --exclude-standard
 2. 是否同时包含代码和文档
 3. 是否触发了仓库里的联动规则
 
+对非极小改动，还需要在提交前先确认：
+
+4. 是否已经有对应的 GitHub Task / Issue
+
 ## 推荐分组方式
 
 ### 1. 业务代码批次
@@ -95,13 +99,39 @@ git add docs/...
 提交信息格式：
 
 ```bash
-git commit -m "feat: 增加闭环分析页面"
+git commit -m "feat: 增加闭环分析页面 #12"
 ```
 
 要求：
 
 - 使用 Conventional Commits 前缀
 - 描述默认用简体中文
+- 非极小改动必须在提交信息中包含 `#<issue_number>`
+
+## Issue / Task 关联规则
+
+默认规则：
+
+- 任何非极小改动，开始实现前都应先有关联的 GitHub Task / Issue
+- 纯文档微调是当前唯一默认豁免场景
+
+本仓库当前支持两种本地关联方式：
+
+1. 分支名带上 issue 编号  
+   例如：`codex/10-java-parsing`
+
+2. 在当前仓库写入本地 issue 引用  
+   执行：
+
+```bash
+bash scripts/hooks/set-issue-ref.sh 10
+```
+
+然后在提交信息中包含相同编号，例如：
+
+```bash
+git commit -m "feat: 增加循环边次数 #10"
+```
 
 ## hooks 失败时怎么处理
 
@@ -113,6 +143,7 @@ git commit -m "feat: 增加闭环分析页面"
 - 提交粒度过大
 - 命中了文档同步或迁移提醒
 - 存在基础 diff 问题
+- 检测到非极小改动，但尚未关联 GitHub Task / Issue
 
 处理原则：
 
@@ -124,10 +155,12 @@ git commit -m "feat: 增加闭环分析页面"
 说明提交信息不符合仓库规则。按提示改成：
 
 ```bash
-feat: 中文说明
-fix: 中文说明
+feat: 中文说明 #12
+fix: 中文说明 #12
 docs: 中文说明
 ```
+
+如果已经通过 `set-issue-ref.sh` 绑定了当前 issue，则提交信息里的编号必须与之保持一致。
 
 ### `pre-push` 失败
 
@@ -149,7 +182,8 @@ cd frontend && npm test
 cd frontend && npm run build
 bash tests/governance_smoke.sh
 git add <明确文件列表>
-git commit -m "feat: 你的中文说明"
+bash scripts/hooks/set-issue-ref.sh 12
+git commit -m "feat: 你的中文说明 #12"
 git push origin main
 ```
 

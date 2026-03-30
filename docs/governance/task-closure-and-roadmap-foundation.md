@@ -123,6 +123,7 @@ Roadmap 用来展示：
 - 较大功能或治理升级应有 Epic / 任务闭环承接
 - spec / plan 完成后，应尽量映射到 GitHub Issues / Project
 - 阶段演进应通过 Milestone / Roadmap 留痕
+- 非极小改动在开始实现前，应尽量先有关联的 GitHub Task / Issue
 
 ### 2. 接入治理文档
 

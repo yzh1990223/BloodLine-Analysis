@@ -1,5 +1,7 @@
 pre-commit:
   commands:
+    issue-link:
+      run: bash scripts/hooks/issue-link-check.sh
     protected-files:
       run: bash scripts/hooks/protected-files-check.sh
     granularity:
@@ -25,4 +27,3 @@ pre-push:
   commands:
     pre-push:
       run: bash scripts/hooks/pre-push
-
