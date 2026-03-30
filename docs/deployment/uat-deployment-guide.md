@@ -12,13 +12,14 @@
 - 支持一部分 MyBatis 场景：
   - 注解 SQL
   - 同 stem XML Mapper 的最小静态 SQL
+- 支持在扫描时实时接入 MySQL `information_schema` 元数据
+- 支持按库白名单读取 metadata，并区分 `data_table` / `table_view`
 - 生成对象级 / 表级血缘和最多 3 跳影响分析
-- 区分 `data_table`、`source_table`、`source_file`
+- 区分 `data_table`、`table_view`、`source_table`、`source_file`
 - 页面化触发扫描、对象浏览、详情查看和闭环分析
 
 当前版本暂未支持：
 
-- MySQL 元数据直连读取
 - 字段级血缘
 - 异步扫描任务队列
 - 权限与多用户管理
@@ -104,7 +105,8 @@ PYTHONPATH=src \
 
 - 当前扫描是同步执行
 - 每次扫描都会先清空旧图，再全量重建
-- `mysql_dsn` 当前不会真正参与元数据读取
+- `mysql_dsn` 会在扫描时实时读取 MySQL metadata
+- metadata 当前保存为最新版本，不保留 `scan_run` 级快照
 
 ### 5.4 systemd 部署方式
 
@@ -195,10 +197,12 @@ sudo systemctl reload nginx
 
 ## 8. UAT 数据准备
 
-当前版本只真正消费以下输入：
+当前版本真正消费以下输入：
 
 - `.repo` 文件
 - Java 源码目录
+- MySQL DSN
+- `metadata_databases` 库白名单（可选）
 
 建议放在服务器固定目录，例如：
 
@@ -217,14 +221,16 @@ sudo systemctl reload nginx
 
 ### 9.1 通过接口触发
 
-同时传两类输入：
+同时传 `.repo + Java + metadata`：
 
 ```bash
 curl -X POST http://your-uat-domain/api/scan \
   -H 'Content-Type: application/json' \
   -d '{
     "repo_path": "/data/bloodline-uat/repo/merged.repo",
-    "java_source_root": "/data/bloodline-uat/java-src"
+    "java_source_root": "/data/bloodline-uat/java-src",
+    "mysql_dsn": "mysql+pymysql://user:pass@db-host/winddf",
+    "metadata_databases": ["winddf", "dm"]
   }'
 ```
 
@@ -259,7 +265,8 @@ curl -X POST http://your-uat-domain/api/scan \
 - 展开“高级配置”填写：
   - `Repo 文件路径`
   - `Java 源码目录`
-  - `MySQL DSN（预留）`
+  - `MySQL DSN`
+  - `Metadata 库白名单`
 
 注意：
 
@@ -290,6 +297,7 @@ curl http://127.0.0.1:8000/api/analysis/cycles
 - 首页对象概览卡片有数据
 - 点击对象概览卡片能进入对象列表
 - 对象详情页能显示完整链路图
+- 对象详情页能显示 metadata 摘要
 - 闭环分析页能显示闭环组列表
 
 ## 11. 常用接口清单
@@ -336,4 +344,4 @@ curl http://127.0.0.1:8000/api/analysis/cycles
 
 - SQLite 仅适合轻量单机场景
 - 扫描为同步执行
-- MySQL 元数据和字段级血缘尚未接入
+- 字段级血缘尚未接入

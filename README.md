@@ -10,9 +10,13 @@
 - 支持一部分 MyBatis 场景：
   - 注解 SQL
   - 同 stem XML Mapper 的最小静态 SQL
+- 支持在扫描时实时接入 MySQL `information_schema` 元数据
+- 支持按库白名单读取 metadata，并将表 / 视图归并到统一对象图
+- 使用独立元数据表 `object_metadata` / `object_metadata_columns` 保存最新 metadata
 - 统一构建对象级血缘图，并派生 `FLOWS_TO` 表级关系
 - 支持对象类型区分：
   - `data_table`
+  - `table_view`
   - `source_table`
   - `source_file`
 - 提供 Web 页面：
@@ -25,11 +29,11 @@
 
 ## 当前限制
 
-- `mysql_dsn` 目前仅保留在扫描接口中，尚未真正接入 MySQL 元数据读取
 - 当前只做到对象级 / 表级血缘，未实现字段级血缘
 - 扫描是同步执行的，每次重新扫描都会先清空旧图，再全量重建
 - 动态 SQL、自定义 Step、复杂脚本类处理仍然是部分覆盖
 - 高动态 MyBatis XML、ORM 自动生成 SQL 和字段级链路仍未覆盖
+- MySQL metadata 当前读取的是“最新版本”，还未做独立缓存式同步流程
 
 ## 项目结构
 
@@ -96,7 +100,20 @@ curl -X POST http://127.0.0.1:8000/api/scan \
 
 - `repo_path` 和 `java_source_root` 只要有一个非空即可触发扫描
 - 带空格的路径可以直接传真实路径，后端也兼容 `\ ` 形式的 shell 转义路径
-- `mysql_dsn` 目前不会真正参与解析
+- `mysql_dsn` 现在会在扫描时实时读取 MySQL metadata
+- 可选传 `metadata_databases` 指定要读取的库白名单；不传时会回退到 DSN 默认库
+
+带 metadata 的扫描示例：
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/scan \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "repo_path": "tests/fixtures/sample.repo.xml",
+    "mysql_dsn": "mysql+pymysql://user:pass@localhost/winddf",
+    "metadata_databases": ["winddf"]
+  }'
+```
 
 ## 主要页面
 
@@ -107,7 +124,7 @@ curl -X POST http://127.0.0.1:8000/api/scan \
 - `/objects`
   - 按类型浏览对象
 - `/tables/:tableKey`
-  - 详情页、直接上下游、完整链路图、关联对象高亮
+  - 详情页、直接上下游、完整链路图、关联对象高亮、元数据摘要
 - `/tables/:tableKey/impact`
   - 最多 3 跳影响分析
 - `/analysis/cycles`
