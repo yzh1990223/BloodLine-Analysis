@@ -25,3 +25,11 @@ def test_extract_tables_normalizes_aliased_reads():
     )
     assert reads == {"ods.orders", "dm.dim_user"}
     assert writes == set()
+
+
+def test_java_parser_emits_method_scoped_statement_facts():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_method_model/OrderService.java"))
+
+    assert result.methods["syncOrderSummary"].statement_ids == ["sql_0"]
+    assert "orderRepository.saveSummary" in result.methods["syncOrderSummary"].calls
