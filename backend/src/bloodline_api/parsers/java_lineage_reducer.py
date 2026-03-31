@@ -50,6 +50,26 @@ def _receiver_to_module_name(receiver: str) -> str:
     return receiver[0].upper() + receiver[1:]
 
 
+def _candidate_module_names_from_type(declared_type: str) -> list[str]:
+    """Build likely implementation module names from a declared field type."""
+
+    simple_name = declared_type.split(".")[-1]
+    candidates: list[str] = []
+
+    def add(name: str) -> None:
+        if name and name not in candidates:
+            candidates.append(name)
+
+    if simple_name.startswith("I") and len(simple_name) > 1:
+        base_name = simple_name[1:]
+        add(f"{base_name}Impl")
+        add(base_name)
+
+    add(f"{simple_name}Impl")
+    add(simple_name)
+    return candidates
+
+
 def _resolve_call_target(
     modules_by_name: dict[str, JavaModuleParseResult],
     current_module_name: str,
@@ -64,13 +84,20 @@ def _resolve_call_target(
         return current_module_name, call
 
     receiver, callee = call.split(".", 1)
-    target_module_name = _receiver_to_module_name(receiver)
-    target_module = modules_by_name.get(target_module_name)
-    if target_module is None or callee not in target_module.methods:
-        return None
-    return target_module_name, callee
+    current_module = modules_by_name.get(current_module_name)
+    declared_type = None if current_module is None else current_module.receiver_types.get(receiver)
 
+    candidate_module_names: list[str] = []
+    if declared_type:
+        candidate_module_names.extend(_candidate_module_names_from_type(declared_type))
+    candidate_module_names.append(_receiver_to_module_name(receiver))
 
+    for target_module_name in candidate_module_names:
+        target_module = modules_by_name.get(target_module_name)
+        if target_module is None or callee not in target_module.methods:
+            continue
+        return target_module_name, callee
+    return None
 def _reduce_method_tables(
     modules_by_name: dict[str, JavaModuleParseResult],
     statements_by_module: dict[str, dict[str, JavaSqlStatement]],

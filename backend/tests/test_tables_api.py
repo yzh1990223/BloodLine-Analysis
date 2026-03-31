@@ -299,6 +299,26 @@ def test_table_lineage_includes_related_api_endpoints(client):
     }
 
 
+def test_table_lineage_includes_api_endpoints_through_service_interfaces(client):
+    response = client.post(
+        "/api/scan",
+        json={
+            "java_source_root": "tests/fixtures/java_api_interface_controller",
+        },
+    )
+
+    assert response.status_code == 202
+
+    lineage = client.get("/api/tables/table:dm.user_order_summary/lineage")
+
+    assert lineage.status_code == 200
+    payload = lineage.json()
+    downstream_keys = {item["key"] for item in payload["downstream_tables"]}
+    assert "api:GET /api/report/summary" in downstream_keys
+    api_keys = {item["key"] for item in payload["related_objects"]["api_endpoints"]}
+    assert "api:GET /api/report/summary" in api_keys
+
+
 def test_connected_lineage_endpoint_returns_directional_subgraph(client, db_session):
     legacy_orders = Node(
         type="data_object",

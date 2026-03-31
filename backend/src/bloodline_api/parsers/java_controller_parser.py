@@ -15,7 +15,10 @@ CLASS_DECL_PATTERN = re.compile(
     re.MULTILINE,
 )
 METHOD_DECL_PATTERN = re.compile(
-    r"((?:@\w+(?:\([^)]*\))?\s*)*)(public|private|protected)\s+[\w<>\[\],\s\.\?]+\s+(\w+)\s*\([^)]*\)\s*\{",
+    r"((?:@\w+(?:\((?:[^()]|\([^()]*\))*\))?\s*)*)"
+    r"(public|private|protected)\s+"
+    r"[^;{}=]+?\s+"
+    r"(\w+)\s*\((?:[^()]|\([^()]*\))*\)\s*\{",
     re.MULTILINE,
 )
 ANNOTATION_PATTERN = re.compile(r"@(\w+)(?:\((.*?)\))?", re.DOTALL)

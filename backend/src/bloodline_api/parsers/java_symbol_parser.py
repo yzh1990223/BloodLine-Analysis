@@ -7,10 +7,21 @@ from dataclasses import dataclass
 
 
 METHOD_DEF_PATTERN = re.compile(
-    r"(public|private|protected)\s+[\w<>\[\]]+\s+(\w+)\s*\([^)]*\)\s*\{"
+    r"(?:public|private|protected)\s+"
+    r"(?:static\s+)?"
+    r"(?:final\s+)?"
+    r"[^;{}=]+?\s+"
+    r"(\w+)\s*\((?:[^()]|\([^()]*\))*\)\s*\{",
+    re.MULTILINE,
 )
 DECLARATION_METHOD_PATTERN = re.compile(
-    r"(public|private|protected)?\s*[\w<>\[\]\.]+\s+(\w+)\s*\([^)]*\)\s*;",
+    r"(?:public|private|protected)?\s*"
+    r"[^;{}=]+?\s+"
+    r"(\w+)\s*\((?:[^()]|\([^()]*\))*\)\s*;",
+    re.MULTILINE,
+)
+FIELD_DECL_PATTERN = re.compile(
+    r"((?:@\w+(?:\([^)]*\))?\s*)*)(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?([\w<>\[\]\.]+)\s+(\w+)\s*(?:=[^;]*)?;",
     re.MULTILINE,
 )
 
@@ -39,14 +50,14 @@ def parse_method_scopes(source: str) -> list[JavaMethodScope]:
             cursor += 1
         scopes.append(
             JavaMethodScope(
-                method_name=match.group(2),
+                method_name=match.group(1),
                 body=source[match.end() : cursor - 1],
                 start_offset=match.start(),
                 end_offset=cursor,
             )
         )
     for match in DECLARATION_METHOD_PATTERN.finditer(source):
-        method_name = match.group(2)
+        method_name = match.group(1)
         if any(scope.method_name == method_name for scope in scopes):
             continue
         scopes.append(
@@ -58,3 +69,18 @@ def parse_method_scopes(source: str) -> list[JavaMethodScope]:
             )
         )
     return scopes
+
+
+def parse_field_types(source: str, method_scopes: list[JavaMethodScope] | None = None) -> dict[str, str]:
+    """Extract top-level field declaration types keyed by receiver variable name."""
+
+    scopes = method_scopes if method_scopes is not None else parse_method_scopes(source)
+    field_types: dict[str, str] = {}
+
+    for match in FIELD_DECL_PATTERN.finditer(source):
+        start = match.start()
+        if any(scope.start_offset <= start < scope.end_offset for scope in scopes):
+            continue
+        field_types[match.group(3)] = match.group(2)
+
+    return field_types

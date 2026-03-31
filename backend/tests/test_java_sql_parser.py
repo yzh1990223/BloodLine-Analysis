@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from bloodline_api.connectors.java_source_reader import read_java_source
+from bloodline_api.parsers.java_symbol_parser import parse_field_types
 from bloodline_api.parsers.java_controller_parser import parse_controller_endpoints
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.sql_table_extractor import extract_tables
@@ -86,6 +88,12 @@ def test_java_parser_skips_unstable_dynamic_xml_mapper_sql():
     assert result.methods["findIds"].statement_ids == []
 
 
+def test_java_symbol_parser_extracts_controller_field_types():
+    source = read_java_source(Path("tests/fixtures/java_api_interface_controller/ReportController.java"))
+
+    assert parse_field_types(source) == {"reportService": "IReportService"}
+
+
 def test_java_controller_parser_extracts_http_endpoint_facts():
     endpoints = parse_controller_endpoints(
         Path("tests/fixtures/java_api_controller/OrderSummaryController.java")
@@ -98,4 +106,15 @@ def test_java_controller_parser_extracts_http_endpoint_facts():
     assert [item.endpoint_key for item in endpoints] == [
         "api:GET /api/orders/{id}",
         "api:POST /api/orders/summary",
+    ]
+
+
+def test_java_controller_parser_handles_generic_return_types():
+    endpoints = parse_controller_endpoints(
+        Path("tests/fixtures/java_api_interface_controller/AssetManagementNetWorthController.java")
+    )
+
+    assert [(item.http_method, item.route, item.method_name) for item in endpoints] == [
+        ("GET", "/assetManagement/selectAssetManagementNetWorth", "selectAssetManagementNetWorth"),
+        ("GET", "/assetManagement/calculate", "calculate"),
     ]
