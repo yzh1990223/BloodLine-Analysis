@@ -636,9 +636,9 @@ class LineageQueryService:
         return scan_run
 
     def search_tables(self, db: Session, query: str = "") -> list[Node]:
-        """Search table nodes by key or name for the frontend search page."""
+        """Search table-like objects and API endpoints by key or name for the frontend search page."""
 
-        stmt = select(Node).where(Node.type.in_(("table", "data_object")))
+        stmt = select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint")))
         if query:
             pattern = f"%{query}%"
             stmt = stmt.where((Node.key.ilike(pattern)) | (Node.name.ilike(pattern)))

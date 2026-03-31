@@ -43,6 +43,12 @@ test("stat cards link to the filtered object list page", async () => {
       { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
       { id: 2, key: "source_file:orders.xlsx", name: "orders.xlsx", object_type: "source_file" },
       { id: 3, key: "table:dm.orders", name: "dm.orders", object_type: "data_table" },
+      {
+        id: 4,
+        key: "api:GET /api/orders/summary",
+        name: "GET /api/orders/summary",
+        object_type: "api_endpoint",
+      },
     ],
   });
 
@@ -86,6 +92,34 @@ test("object list page filters by type and links each object to its detail page"
   await waitFor(() => {
     expect(screen.getByRole("link", { name: "legacy_orders" })).toBeTruthy();
   });
+});
+
+test("object list page shows api endpoints when filtered by api_endpoint", async () => {
+  searchTables.mockResolvedValue({
+    items: [
+      { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
+      { id: 2, key: "table:dm.orders", name: "dm.orders", object_type: "data_table" },
+      {
+        id: 3,
+        key: "api:GET /api/orders/summary",
+        name: "GET /api/orders/summary",
+        object_type: "api_endpoint",
+      },
+    ],
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/objects?type=api_endpoint"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByText("对象列表")).toBeTruthy();
+  expect(screen.getByText("当前类型：API接口")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "GET /api/orders/summary" }).getAttribute("href")).toBe(
+    "/tables/api%3AGET%20%2Fapi%2Forders%2Fsummary",
+  );
+  expect(screen.queryByText("dm.orders")).toBeNull();
 });
 
 test("cycle analysis page shows grouped closed loops and links each table to detail", async () => {

@@ -48,6 +48,12 @@ test("loads overview stats on first render and only fetches lineage when an item
         name: "dm.user_order_summary",
         object_type: "data_table",
       },
+      {
+        id: 3,
+        key: "api:GET /api/orders/summary",
+        name: "GET /api/orders/summary",
+        object_type: "api_endpoint",
+      },
     ],
   });
   fetchTableLineage.mockResolvedValue({
@@ -78,7 +84,11 @@ test("loads overview stats on first render and only fetches lineage when an item
   expect(await screen.findByText("对象概览")).toBeTruthy();
   expect(screen.getByText("总对象数")).toBeTruthy();
   expect(screen.getByText("闭环分析")).toBeTruthy();
-  expect(screen.getByText("3")).toBeTruthy();
+  expect(screen.getByText("API接口")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "查看 API 接口对象列表" }).getAttribute("href")).toBe(
+    "/objects?type=api_endpoint",
+  );
+  expect(screen.getAllByText("3").length).toBeGreaterThan(0);
   expect(fetchTableLineage).not.toHaveBeenCalled();
 
   fireEvent.change(screen.getByPlaceholderText("搜索数据表"), {

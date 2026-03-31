@@ -26,6 +26,14 @@ def test_search_tables_returns_matching_nodes(client, db_session):
             payload={"object_type": "data_table"},
         )
     )
+    db_session.add(
+        Node(
+            type="api_endpoint",
+            key="api:GET /api/orders/summary",
+            name="GET /api/orders/summary",
+            payload={"object_type": "api_endpoint", "http_method": "GET", "route": "/api/orders/summary"},
+        )
+    )
     db_session.commit()
 
     response = client.get("/api/tables/search", params={"q": "orders"})
@@ -34,6 +42,13 @@ def test_search_tables_returns_matching_nodes(client, db_session):
     items = response.json()["items"]
     assert any(item["key"] == "table:ods.orders" for item in items)
     assert any(item["object_type"] == "data_table" for item in items)
+
+    api_response = client.get("/api/tables/search", params={"q": "orders/summary"})
+
+    assert api_response.status_code == 200
+    api_items = api_response.json()["items"]
+    assert any(item["key"] == "api:GET /api/orders/summary" for item in api_items)
+    assert any(item["object_type"] == "api_endpoint" for item in api_items)
 
 
 def test_scan_pipeline_persists_table_lineage_and_related_objects(client):
