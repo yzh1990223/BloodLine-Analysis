@@ -32,6 +32,14 @@ function latestTime(scanRun: ScanRunSummary | null) {
   return scanRun.finished_at ?? scanRun.started_at ?? scanRun.created_at ?? "暂无记录";
 }
 
+function toFormState(inputs?: ScanRequestPayload): ScanFormState {
+  return {
+    repo_path: inputs?.repo_path ?? "",
+    java_source_root: inputs?.java_source_root ?? "",
+    mysql_dsn: inputs?.mysql_dsn ?? "",
+  };
+}
+
 export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
   const [latestScanRun, setLatestScanRun] = useState<LatestScanRunResponse["scan_run"]>(null);
   const [statusLabel, setStatusLabel] = useState("未开始");
@@ -54,6 +62,7 @@ export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
           return;
         }
         setLatestScanRun(response.scan_run);
+        setFormState(toFormState(response.scan_run?.inputs));
         setStatusLabel(formatStatus(response.scan_run?.status ?? null));
       } catch (err) {
         if (!active) {
@@ -99,6 +108,7 @@ export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
       await createScan(payload);
       const latest = await fetchLatestScanRun();
       setLatestScanRun(latest.scan_run);
+      setFormState(toFormState(latest.scan_run?.inputs));
       setStatusLabel(formatStatus(latest.scan_run?.status ?? "completed"));
       await onScanCompleted();
     } catch (err) {

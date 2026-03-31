@@ -20,6 +20,7 @@ class ScanRun(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True)
+    inputs: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(

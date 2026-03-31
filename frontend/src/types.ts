@@ -85,6 +85,7 @@ export interface CycleGroupSummaryResponse {
 export interface ScanRunSummary {
   id: number;
   status: string;
+  inputs?: ScanRequestPayload;
   started_at: string | null;
   finished_at: string | null;
   created_at: string | null;
@@ -98,10 +99,11 @@ export interface ScanRequestPayload {
   repo_path?: string;
   java_source_root?: string;
   mysql_dsn?: string;
+  metadata_databases?: string[];
 }
 
 export interface CreateScanResponse {
   scan_run_id: number;
   status: string;
-  inputs: Record<string, string>;
+  inputs: ScanRequestPayload;
 }

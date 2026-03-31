@@ -60,6 +60,40 @@ test("shows latest scan status and lets the user trigger a new scan", async () =
   });
 });
 
+test("auto-fills the latest saved scan inputs", async () => {
+  fetchLatestScanRun.mockResolvedValue({
+    scan_run: {
+      id: 15,
+      status: "completed",
+      started_at: "2026-03-31T01:00:00Z",
+      finished_at: "2026-03-31T01:01:00Z",
+      created_at: "2026-03-31T01:00:00Z",
+      inputs: {
+        repo_path: "/data/latest.repo",
+        java_source_root: "/data/latest-java",
+        mysql_dsn: "mysql+pymysql://user:pass@localhost/dm",
+      },
+    },
+  });
+
+  render(<ScanControlPanel onScanCompleted={() => {}} />);
+
+  expect(await screen.findByText("最近扫描状态")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "高级配置" }));
+
+  await waitFor(() => {
+    expect((screen.getByLabelText("Repo 文件路径") as HTMLInputElement).value).toBe(
+      "/data/latest.repo",
+    );
+    expect((screen.getByLabelText("Java 源码目录") as HTMLInputElement).value).toBe(
+      "/data/latest-java",
+    );
+    expect((screen.getByLabelText("MySQL DSN（预留）") as HTMLInputElement).value).toBe(
+      "mysql+pymysql://user:pass@localhost/dm",
+    );
+  });
+});
+
 test("submits a scan when only one path is provided and omits empty fields", async () => {
   fetchLatestScanRun.mockResolvedValue({
     scan_run: null,
