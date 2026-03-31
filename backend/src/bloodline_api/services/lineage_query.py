@@ -13,6 +13,8 @@ from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
 from bloodline_api.connectors.mysql_metadata import MySQLMetadataObject
 from bloodline_api.connectors.mysql_metadata import build_mysql_metadata_request
 from bloodline_api.models import Edge, Node, ObjectMetadata, ObjectMetadataColumn, ScanRun
+from bloodline_api.parsers.java_controller_parser import parse_controller_endpoints
+from bloodline_api.parsers.java_lineage_reducer import reduce_java_api_endpoints
 from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.repo_parser import RepoParser
@@ -286,7 +288,7 @@ class LineageQueryService:
 
         table_keys: set[str] = set()
 
-        if actor.type in {"job", "transformation", "java_module"}:
+        if actor.type in {"job", "transformation", "java_module", "api_endpoint"}:
             direct_table_ids = db.scalars(
                 select(Edge.dst_node_id).where(
                     Edge.src_node_id == actor.id,
@@ -322,6 +324,7 @@ class LineageQueryService:
         transformation_nodes: dict[str, Node] = {}
         job_nodes: dict[str, Node] = {}
         java_module_nodes: dict[str, Node] = {}
+        api_endpoint_nodes: dict[str, Node] = {}
 
         actor_edges = db.scalars(
             select(Edge).where(
@@ -348,6 +351,8 @@ class LineageQueryService:
                 job_nodes[actor.key] = actor
             elif actor.type == "java_module":
                 java_module_nodes[actor.key] = actor
+            elif actor.type == "api_endpoint":
+                api_endpoint_nodes[actor.key] = actor
 
         return {
             "jobs": [
@@ -367,6 +372,15 @@ class LineageQueryService:
                     "related_table_keys": self._collect_actor_table_keys(db, node),
                 }
                 for node in sorted(java_module_nodes.values(), key=lambda item: (item.name, item.id))
+            ],
+            "api_endpoints": [
+                {
+                    "id": node.id,
+                    "key": node.key,
+                    "name": node.name,
+                    "related_table_keys": self._collect_actor_table_keys(db, node),
+                }
+                for node in sorted(api_endpoint_nodes.values(), key=lambda item: (item.name, item.id))
             ],
             "transformations": [
                 {
@@ -518,8 +532,15 @@ class LineageQueryService:
         if java_source_root:
             java_root = _resolve_input_path(java_source_root)
             if java_root.is_dir():
-                java_results = [JavaSqlParser().parse_file(java_file) for java_file in sorted(java_root.rglob("*.java"))]
+                java_files = sorted(java_root.rglob("*.java"))
+                java_results = [JavaSqlParser().parse_file(java_file) for java_file in java_files]
+                java_api_facts = [
+                    endpoint
+                    for java_file in java_files
+                    for endpoint in parse_controller_endpoints(java_file)
+                ]
                 reduced_java_results = reduce_java_modules(java_results)
+                reduced_api_results = reduce_java_api_endpoints(java_api_facts, reduced_java_results)
                 for java_result in java_results:
                     reduced_java_result = reduced_java_results[java_result.module_name]
                     java_node = self._get_or_create_node(
@@ -567,6 +588,37 @@ class LineageQueryService:
                                 metadata_aliases=metadata_aliases,
                             )
                             fact_edges.append(("WRITES", method_actor, table_node.key))
+                for endpoint in reduced_api_results:
+                    api_node = self._get_or_create_node(
+                        db,
+                        "api_endpoint",
+                        endpoint.endpoint_key,
+                        f"{endpoint.http_method} {endpoint.route}",
+                    )
+                    api_payload = dict(api_node.payload or {})
+                    api_payload["object_type"] = "api_endpoint"
+                    api_payload["http_method"] = endpoint.http_method
+                    api_payload["route"] = endpoint.route
+                    api_node.payload = api_payload
+                    db.flush()
+                    for table_name in endpoint.read_tables:
+                        table_node = self._resolve_object_node(
+                            db,
+                            name=table_name,
+                            object_type="data_table",
+                            object_nodes=object_nodes,
+                            metadata_aliases=metadata_aliases,
+                        )
+                        self._ensure_edge(db, "READS", api_node.id, table_node.id)
+                    for table_name in endpoint.write_tables:
+                        table_node = self._resolve_object_node(
+                            db,
+                            name=table_name,
+                            object_type="data_table",
+                            object_nodes=object_nodes,
+                            metadata_aliases=metadata_aliases,
+                        )
+                        self._ensure_edge(db, "WRITES", api_node.id, table_node.id)
 
         table_flows = build_table_flows(fact_edges)
         for source_key, target_key in table_flows:
@@ -758,11 +810,23 @@ class LineageQueryService:
         )
         upstream_tables = list(db.scalars(upstream_stmt).all())
         downstream_tables = list(db.scalars(downstream_stmt).all())
+        api_endpoint_stmt = (
+            select(Node)
+            .join(Edge, Edge.src_node_id == Node.id)
+            .where(
+                Node.type == "api_endpoint",
+                Edge.dst_node_id == table.id,
+                Edge.type.in_(("READS", "WRITES")),
+            )
+            .order_by(Node.name.asc(), Node.id.asc())
+        )
+        api_endpoints = list(db.scalars(api_endpoint_stmt).all())
+        downstream_nodes = sorted([*downstream_tables, *api_endpoints], key=lambda node: (node.name, node.id))
 
         return {
             "table": _serialize_object(table),
             "upstream_tables": [_serialize_object(node) for node in upstream_tables],
-            "downstream_tables": [_serialize_object(node) for node in downstream_tables],
+            "downstream_tables": [_serialize_object(node) for node in downstream_nodes],
             "related_objects": self._related_objects(db, table),
         }
 

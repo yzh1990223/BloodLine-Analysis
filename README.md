@@ -7,6 +7,7 @@
 - 解析 Kettle `.repo` 文件中的 Job、Transformation、数据库输入输出步骤和部分 Job SQL
 - 解析 Java 源码中的静态 SQL，识别读写表关系
 - 支持 Java 方法级事实与最小调用图归并
+- 支持把部分 Spring MVC HTTP 接口继续穿透为 `api_endpoint` 终点节点
 - 支持一部分 MyBatis 场景：
   - 注解 SQL
   - 同 stem XML Mapper 的最小静态 SQL
@@ -33,6 +34,7 @@
 - 扫描是同步执行的，每次重新扫描都会先清空旧图，再全量重建
 - 动态 SQL、自定义 Step、复杂脚本类处理仍然是部分覆盖
 - 高动态 MyBatis XML、ORM 自动生成 SQL 和字段级链路仍未覆盖
+- HTTP API 节点当前仅支持 Spring MVC 常见映射注解，不支持 RPC / Feign / OpenAPI 同步
 - MySQL metadata 当前读取的是“最新版本”，还未做独立缓存式同步流程
 
 ## 项目结构
@@ -124,7 +126,7 @@ curl -X POST http://127.0.0.1:8000/api/scan \
 - `/objects`
   - 按类型浏览对象
 - `/tables/:tableKey`
-  - 详情页、直接上下游、完整链路图、关联对象高亮、元数据摘要
+  - 详情页、直接上下游、完整链路图、API 终点节点、关联对象高亮、元数据摘要
 - `/tables/:tableKey/impact`
   - 最多 3 跳影响分析
 - `/analysis/cycles`

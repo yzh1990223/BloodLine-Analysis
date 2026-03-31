@@ -30,11 +30,13 @@
 - 当前 Java 解析已支持：
   - 静态 SQL 字符串
   - 最小 `Service -> Repository -> DAO` 调用链
+  - 部分 Spring MVC HTTP 接口穿透到 `api_endpoint` 节点
   - MyBatis 注解 SQL
   - 同 stem XML Mapper 的最小静态 SQL
 - 当前仍不支持：
   - 高动态 SQL
   - 复杂 MyBatis 动态标签的完整展开
+  - RPC / Feign / OpenAPI 同步
   - 字段级血缘
 
 ## 3. 页面入口
@@ -145,6 +147,7 @@ http://your-uat-domain/
 - 关联对象
   - 作业
   - Java 模块
+  - API 接口
   - 转换
 
 页面内按钮：
@@ -166,6 +169,7 @@ http://your-uat-domain/
 
 - 上游节点仅保留继续向上追溯的链路
 - 下游节点仅保留继续向下扩散的链路
+- 如果当前对象被对外 HTTP 接口消费，图中还会出现 `API 接口` 类型的终点节点
 
 ### 6.2 关联对象高亮
 

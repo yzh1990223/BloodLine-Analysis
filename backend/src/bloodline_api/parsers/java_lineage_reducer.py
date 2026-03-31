@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from bloodline_api.parsers.java_controller_parser import JavaApiEndpointFact
 from bloodline_api.parsers.java_sql_parser import JavaMethodFact
 from bloodline_api.parsers.java_sql_parser import JavaModuleParseResult
 from bloodline_api.parsers.java_sql_parser import JavaSqlStatement
@@ -26,6 +27,19 @@ class ReducedJavaModuleFact:
     read_tables: list[str]
     write_tables: list[str]
     methods: dict[str, ReducedJavaMethodFact]
+
+
+@dataclass(slots=True)
+class ReducedJavaApiEndpointFact:
+    """HTTP endpoint facts reduced through the existing Java call graph."""
+
+    endpoint_key: str
+    route: str
+    http_method: str
+    controller_module_name: str
+    method_name: str
+    read_tables: list[str]
+    write_tables: list[str]
 
 
 def _receiver_to_module_name(receiver: str) -> str:
@@ -148,4 +162,32 @@ def reduce_java_modules(results: list[JavaModuleParseResult]) -> dict[str, Reduc
             methods=reduced_methods,
         )
 
+    return reduced
+
+
+def reduce_java_api_endpoints(
+    endpoints: list[JavaApiEndpointFact],
+    reduced_modules: dict[str, ReducedJavaModuleFact],
+) -> list[ReducedJavaApiEndpointFact]:
+    """Reduce controller endpoints into endpoint-scoped table facts."""
+
+    reduced: list[ReducedJavaApiEndpointFact] = []
+    for endpoint in endpoints:
+        module = reduced_modules.get(endpoint.controller_module_name)
+        if module is None:
+            continue
+        method = module.methods.get(endpoint.method_name)
+        if method is None:
+            continue
+        reduced.append(
+            ReducedJavaApiEndpointFact(
+                endpoint_key=endpoint.endpoint_key,
+                route=endpoint.route,
+                http_method=endpoint.http_method,
+                controller_module_name=endpoint.controller_module_name,
+                method_name=endpoint.method_name,
+                read_tables=method.read_tables,
+                write_tables=method.write_tables,
+            )
+        )
     return reduced

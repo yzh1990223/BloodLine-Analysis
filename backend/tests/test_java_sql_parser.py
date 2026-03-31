@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from bloodline_api.parsers.java_controller_parser import parse_controller_endpoints
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.sql_table_extractor import extract_tables
 
@@ -64,3 +65,18 @@ def test_java_parser_extracts_static_tables_from_xml_mapper():
     assert result.write_tables == ["dm.user_order_summary"]
     assert result.methods["loadOrders"].statement_ids == ["sql_0"]
     assert result.methods["saveSummary"].statement_ids == ["sql_1"]
+
+
+def test_java_controller_parser_extracts_http_endpoint_facts():
+    endpoints = parse_controller_endpoints(
+        Path("tests/fixtures/java_api_controller/OrderSummaryController.java")
+    )
+
+    assert [(item.http_method, item.route, item.method_name) for item in endpoints] == [
+        ("GET", "/api/orders/{id}", "getSummary"),
+        ("POST", "/api/orders/summary", "refreshSummary"),
+    ]
+    assert [item.endpoint_key for item in endpoints] == [
+        "api:GET /api/orders/{id}",
+        "api:POST /api/orders/summary",
+    ]

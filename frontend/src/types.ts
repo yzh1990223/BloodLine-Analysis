@@ -26,6 +26,7 @@ export interface RelatedObjectSummary {
 export interface RelatedObjects {
   jobs: RelatedObjectSummary[];
   java_modules: RelatedObjectSummary[];
+  api_endpoints: RelatedObjectSummary[];
   transformations: RelatedObjectSummary[];
 }
 

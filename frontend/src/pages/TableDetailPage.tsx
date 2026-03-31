@@ -113,6 +113,7 @@ export function TableDetailPage() {
           lineage?.related_objects ?? {
             jobs: [],
             java_modules: [],
+            api_endpoints: [],
             transformations: [],
           }
         }

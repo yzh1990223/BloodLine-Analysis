@@ -8,7 +8,7 @@ interface RelatedObjectsPanelProps {
 
 function renderList(
   title: string,
-  items: { key: string; name: string; related_table_keys?: string[] }[],
+  items: { key: string; name: string; related_table_keys?: string[] }[] = [],
   activeObjectKey?: string | null,
   onObjectSelect?: (objectKey: string | null, relatedTableKeys: string[]) => void,
 ) {
@@ -50,6 +50,7 @@ export function RelatedObjectsPanel({
       <div className="related-grid">
         {renderList("作业", relatedObjects.jobs, activeObjectKey, onObjectSelect)}
         {renderList("Java 模块", relatedObjects.java_modules, activeObjectKey, onObjectSelect)}
+        {renderList("API 接口", relatedObjects.api_endpoints, activeObjectKey, onObjectSelect)}
         {renderList("转换", relatedObjects.transformations, activeObjectKey, onObjectSelect)}
       </div>
     </section>

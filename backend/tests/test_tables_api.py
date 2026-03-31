@@ -270,6 +270,35 @@ def test_java_module_detail_uses_call_chain_to_reduce_lineage(client):
     assert "table:dm.user_order_summary" in write_table_keys
 
 
+def test_table_lineage_includes_related_api_endpoints(client):
+    response = client.post(
+        "/api/scan",
+        json={
+            "java_source_root": "tests/fixtures/java_api_controller",
+        },
+    )
+
+    assert response.status_code == 202
+
+    lineage = client.get("/api/tables/table:dm.user_order_summary/lineage")
+
+    assert lineage.status_code == 200
+    payload = lineage.json()
+    api_names = [item["name"] for item in payload["related_objects"]["api_endpoints"]]
+    assert api_names == [
+        "GET /api/orders/{id}",
+        "POST /api/orders/summary",
+    ]
+    downstream_keys = {item["key"] for item in payload["downstream_tables"]}
+    assert "api:GET /api/orders/{id}" in downstream_keys
+    assert "api:POST /api/orders/summary" in downstream_keys
+    api_keys = {item["key"] for item in payload["related_objects"]["api_endpoints"]}
+    assert api_keys == {
+        "api:GET /api/orders/{id}",
+        "api:POST /api/orders/summary",
+    }
+
+
 def test_connected_lineage_endpoint_returns_directional_subgraph(client, db_session):
     legacy_orders = Node(
         type="data_object",

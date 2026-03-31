@@ -51,7 +51,7 @@ def table_lineage(table_key: str, db: Session = Depends(get_db)) -> dict[str, ob
         "table": None,
         "upstream_tables": [],
         "downstream_tables": [],
-        "related_objects": {"jobs": [], "java_modules": [], "transformations": []},
+        "related_objects": {"jobs": [], "java_modules": [], "api_endpoints": [], "transformations": []},
     }
 
 
@@ -72,5 +72,5 @@ def table_impact(table_key: str, db: Session = Depends(get_db)) -> dict[str, obj
         "upstream_tables": [],
         "downstream_tables": [],
         "impacted_tables": [],
-        "related_objects": {"jobs": [], "java_modules": [], "transformations": []},
+        "related_objects": {"jobs": [], "java_modules": [], "api_endpoints": [], "transformations": []},
     }
