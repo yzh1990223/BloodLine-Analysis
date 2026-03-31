@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="fixtures.java_dynamic_xml_mapper.DynamicMapper">
+  <select id="findIds" resultType="string">
+    select id
+    from ods.orders
+    <where>
+      <if test="channelType != null and channelType in ('1', '2', '3') 0&quot;&gt;">
+        and ch_type = #{channelType}
+      </if>
+      <if test="ids != null">
+        and r.id in
+        <foreach collection="ids" item="item" open="(" separator="," close=")">
+          #{item}
+        </foreach>
+      </if>
+    </where>
+  </select>
+</mapper>

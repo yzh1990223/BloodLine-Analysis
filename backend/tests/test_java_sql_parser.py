@@ -28,6 +28,15 @@ def test_extract_tables_normalizes_aliased_reads():
     assert writes == set()
 
 
+def test_extract_tables_returns_empty_for_unstable_dynamic_mybatis_sql():
+    reads, writes = extract_tables(
+        "select id from ods.orders where ch_type in ('1', '2', '3') 0\"> and r.id in #{item}"
+    )
+
+    assert reads == set()
+    assert writes == set()
+
+
 def test_java_parser_emits_method_scoped_statement_facts():
     parser = JavaSqlParser()
     result = parser.parse_file(Path("tests/fixtures/java_method_model/OrderService.java"))
@@ -65,6 +74,16 @@ def test_java_parser_extracts_static_tables_from_xml_mapper():
     assert result.write_tables == ["dm.user_order_summary"]
     assert result.methods["loadOrders"].statement_ids == ["sql_0"]
     assert result.methods["saveSummary"].statement_ids == ["sql_1"]
+
+
+def test_java_parser_skips_unstable_dynamic_xml_mapper_sql():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_dynamic_xml_mapper/DynamicMapper.java"))
+
+    assert result.read_tables == []
+    assert result.write_tables == []
+    assert result.statements == []
+    assert result.methods["findIds"].statement_ids == []
 
 
 def test_java_controller_parser_extracts_http_endpoint_facts():

@@ -2,8 +2,14 @@
 
 from __future__ import annotations
 
+import logging
+
 from sqlglot import exp, parse_one
 from sqlglot.errors import ParseError
+from sqlglot.errors import TokenError
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def _table_name(table: exp.Table) -> str:
@@ -27,7 +33,8 @@ def extract_tables(sql: str) -> tuple[set[str], set[str]]:
 
     try:
         expression = parse_one(sql, read="mysql")
-    except ParseError:
+    except (ParseError, TokenError) as exc:
+        LOGGER.warning("Skipping unsupported SQL fragment during table extraction: %s", exc)
         return set(), set()
 
     target = _target_table(expression)
