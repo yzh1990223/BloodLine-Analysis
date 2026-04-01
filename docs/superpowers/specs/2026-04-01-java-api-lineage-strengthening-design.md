@@ -20,6 +20,30 @@
 
 这说明当前问题不在“有没有识别出 API 路由”，而在“Controller -> Service -> Impl -> Mapper/SQL -> Table”这条链的真实工程适配能力仍然不足。
 
+基于对真实目录 `/Users/nathan/Documents/resources/frms-src/main` 的补充调研，还可以看到更具体的模式特征：
+
+- `main/java` 中约有 `1807` 个 Java 文件
+- 识别到 `211` 个 Controller，其中 `210` 个是 `@RestController`
+- 路由方法注解以 `@PostMapping` 和 `@GetMapping` 为主：
+  - `@PostMapping 526`
+  - `@GetMapping 313`
+  - `@RequestMapping 213`
+- Service 注入几乎全是字段注入：
+  - `@Autowired 535`
+  - `@Resource 33`
+- Service 层大量采用接口 + 实现类双层结构：
+  - `254` 个 `*Service` 接口
+  - `255` 个 `*ServiceImpl` 类
+- 其中 `115` 个 `ServiceImpl` 直接 `extends ServiceImpl<Mapper, Entity>`
+- Mapper / DAO 约 `386` 个，其中 `333` 个直接 `extends BaseMapper<...>`
+- XML Mapper 约 `209` 个，其中带 `<if>/<foreach>/<where>/<set>/<trim>` 等动态标签的有 `132` 个
+- 注解 SQL 虽然总量不高，但变体明显：
+  - `@Select(value = "...")`
+  - 多段字符串拼接
+- 只有约 `200/386` 个 Mapper / DAO Java 文件存在同目录同名 XML，另有部分 XML 位于 `main/resources/mapper`
+
+这些模式共同说明：真实工程里的主要难点，不是“多识别几种 Controller 注解”，而是“如何把字段注入、接口实现、多层 Service、MyBatis-Plus 继承式 CRUD、动态 XML 和注解 SQL 变体，稳定归并回表级事实”。
+
 ## 2. 目标
 
 本轮增强目标是：
@@ -56,6 +80,18 @@
 
 这对简单 demo 有效，但对真实工程中的接口注入、多实现、命名不一致、抽象层封装等场景不够稳。
 
+真实工程里已经观察到大量这类模式：
+
+- Controller 注入接口，例如 `IXxxService`
+- ServiceImpl 通过 `extends ServiceImpl<...>` 获得方法体，而不是在源码里直接声明
+- Controller 直接调用 `save / getById / updateById / removeById / selectPage` 这类继承方法
+
+典型样例包括：
+
+- [FiDepositController.java](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/controller/fi/FiDepositController.java#L30)
+- [RpMappingService.java](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/service/fi/RpMappingService.java#L11)
+- [RpMappingServiceImpl.java](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/service/fi/impl/RpMappingServiceImpl.java#L15)
+
 ### 4.3 方法调用图仍然是最小图
 
 当前 `java_call_graph.py` 基于正则抽取：
@@ -86,6 +122,23 @@
 - Mapper / XML 才真正承载 SQL
 
 如果这条桥接链没有被稳定接通，API 节点就会停留在“已识别路由，但无表边”的状态。
+
+真实工程里尤其明显的几类漏点是：
+
+- `BaseMapper` / `IService` / `ServiceImpl` 继承式 CRUD
+- `LambdaQueryWrapper / QueryWrapper / LambdaUpdateWrapper` 这类 Wrapper DSL
+- `@Select(value = "...")`、多段字符串拼接注解 SQL
+- 动态 XML Mapper（`<if>`、`<foreach>`、`<where>`）
+- 非 sibling XML（位于 `resources/mapper`）
+
+典型样例包括：
+
+- [RpCountryRiskExposureUploadServiceImpl.java](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/service/countryRisk/impl/RpCountryRiskExposureUploadServiceImpl.java#L40)
+- [RpCountryRiskExposureUploadMapper.java](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/mapper/countryRisk/RpCountryRiskExposureUploadMapper.java#L17)
+- [RpCountryRiskExposureUploadMapper.xml](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/mapper/countryRisk/RpCountryRiskExposureUploadMapper.xml#L3)
+- [CommRiskreportpublishlogMapper.java](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/mapper/risk/CommRiskreportpublishlogMapper.java#L19)
+- [ClientInfoMapper.xml](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/mapper/client/ClientInfoMapper.xml#L19)
+- [RmEDSFtMatchResultMapper.xml](/Users/nathan/Documents/resources/frms-src/main/java/com/cicc/frms/client/app/mapper/eds/RmEDSFtMatchResultMapper.xml#L3)
 
 ### 4.5 当前缺少失败可观测性
 
@@ -142,6 +195,7 @@
 - 建立接口到实现类的索引
 - 唯一实现类时自动绑定
 - 多实现类时保守标记 unresolved，而不是乱猜
+- 对 `extends ServiceImpl<Mapper, Entity>` 这种常见模式补“继承式 CRUD”桥接
 
 预期收益：
 
@@ -171,9 +225,11 @@
 增强点：
 
 - 强化 Mapper 接口到注解 SQL / XML SQL 的绑定
+- 支持 `value = "..."` 和多段字符串拼接注解 SQL
 - 强化 Repository / DAO 命名模式识别
 - 把“接口方法承载 SQL”与“实现类方法承载 SQL”统一抽象成方法级事实来源
 - 当 Mapper 是接口且无实现体时，允许直接作为 SQL 事实终点
+- 扩展 XML 查找范围，支持 sibling XML 之外的 `resources/mapper` 常见布局
 
 预期收益：
 
