@@ -161,9 +161,16 @@ test("submits a scan when only one path is provided and omits empty fields", asy
   });
 });
 
-test("keeps the scan button clickable and only blocks submission when both paths are empty", async () => {
+test("allows mysql-only scans and only blocks submission when repo, java, and mysql are all empty", async () => {
   fetchLatestScanRun.mockResolvedValue({
     scan_run: null,
+  });
+  createScan.mockResolvedValue({
+    scan_run_id: 17,
+    status: "completed",
+    inputs: {
+      mysql_dsn: "mysql+pymysql://user:pass@localhost/dm",
+    },
   });
 
   render(<ScanControlPanel onScanCompleted={() => {}} />);
@@ -171,10 +178,27 @@ test("keeps the scan button clickable and only blocks submission when both paths
   const submitButton = screen.getByRole("button", { name: "重新扫描解析" });
   expect((submitButton as HTMLButtonElement).disabled).toBe(false);
 
+  fireEvent.click(screen.getByRole("button", { name: "高级配置" }));
+  fireEvent.change(screen.getByLabelText("MySQL DSN（预留）"), {
+    target: { value: "mysql+pymysql://user:pass@localhost/dm" },
+  });
   fireEvent.click(submitButton);
 
+  await waitFor(() => {
+    expect(createScan).toHaveBeenCalledWith({
+      mysql_dsn: "mysql+pymysql://user:pass@localhost/dm",
+    });
+  });
+
+  createScan.mockClear();
+  fireEvent.change(screen.getByLabelText("MySQL DSN（预留）"), {
+    target: { value: "" },
+  });
+  fireEvent.click(submitButton);
   expect(
-    await screen.findByText("请至少填写 1 个 Repo 文件路径或 1 个 Java 源码目录，多个路径请用英文逗号分隔。"),
+    await screen.findByText(
+      "请至少填写 Repo 文件路径、Java 源码目录或 MySQL DSN 中的 1 项；如需填写多个路径，请用英文逗号分隔。",
+    ),
   ).toBeTruthy();
   expect(screen.getByLabelText("Repo 文件路径")).toBeTruthy();
   expect(createScan).not.toHaveBeenCalled();

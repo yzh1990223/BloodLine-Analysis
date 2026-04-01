@@ -108,9 +108,11 @@ export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
       payload.metadata_databases = metadataDatabases;
     }
 
-    if (!payload.repo_paths && !payload.java_source_roots) {
+    if (!payload.repo_paths && !payload.java_source_roots && !payload.mysql_dsn) {
       setShowAdvanced(true);
-      setError("请至少填写 1 个 Repo 文件路径或 1 个 Java 源码目录，多个路径请用英文逗号分隔。");
+      setError(
+        "请至少填写 Repo 文件路径、Java 源码目录或 MySQL DSN 中的 1 项；如需填写多个路径，请用英文逗号分隔。",
+      );
       return;
     }
 
