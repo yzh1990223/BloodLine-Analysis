@@ -10,6 +10,7 @@ dependencies = [
   "alembic",
   "sqlglot",
   "pymysql",
+  "cryptography",
 ]
 
 [project.optional-dependencies]

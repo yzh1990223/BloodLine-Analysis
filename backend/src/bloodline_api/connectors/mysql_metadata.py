@@ -9,10 +9,16 @@ from sqlalchemy import bindparam
 from sqlalchemy import create_engine
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import SQLAlchemyError
 
 
 class MySQLMetadataConfigurationError(ValueError):
     """Raised when a metadata request lacks a valid database scope."""
+
+
+class MySQLMetadataConnectionError(ValueError):
+    """Raised when MySQL metadata loading cannot connect or authenticate."""
 
 
 @dataclass(slots=True)
@@ -113,7 +119,29 @@ class MySQLMetadataLoader:
         """Return grouped table/view metadata for the requested database scope."""
 
         grouped: dict[tuple[str, str, str, str | None], list[dict[str, Any]]] = {}
-        for row in self._row_fetcher(request):
+        try:
+            rows = self._row_fetcher(request)
+        except RuntimeError as exc:
+            if "cryptography" in str(exc):
+                raise MySQLMetadataConnectionError(
+                    "当前 MySQL 认证方式需要 cryptography 依赖，请先安装该依赖后再重试。"
+                ) from exc
+            raise MySQLMetadataConnectionError(
+                f"MySQL 元数据连接失败：{exc}"
+            ) from exc
+        except SQLAlchemyError as exc:
+            if isinstance(exc, OperationalError):
+                detail = str(exc.orig) if getattr(exc, "orig", None) is not None else str(exc)
+                lowered = detail.lower()
+                if "nodename nor servname provided" in lowered or "name or service not known" in lowered:
+                    raise MySQLMetadataConnectionError(
+                        "MySQL 主机名无法解析，请检查 DSN 中的 host 是否正确。若本机连接，建议使用 localhost 或 127.0.0.1。"
+                    ) from exc
+            raise MySQLMetadataConnectionError(
+                f"MySQL 元数据连接失败，请检查 DSN、网络和账号权限后重试。({exc.__class__.__name__})"
+            ) from exc
+
+        for row in rows:
             key = (
                 str(row["database_name"]),
                 str(row["object_name"]),

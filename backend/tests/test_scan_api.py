@@ -163,3 +163,25 @@ def test_scan_returns_friendly_error_for_invalid_java_directory(client):
         response.json()["detail"]
         == "第 2 个 Java 源码目录不是目录：tests/fixtures/sample.repo.xml。请填写目录路径后重试。"
     )
+
+
+def test_scan_returns_friendly_error_for_mysql_metadata_connection_failure(client):
+    from bloodline_api.connectors.mysql_metadata import MySQLMetadataConnectionError
+    from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
+
+    original_load = MySQLMetadataLoader.load
+    MySQLMetadataLoader.load = lambda self, request: (_ for _ in ()).throw(
+        MySQLMetadataConnectionError("当前 MySQL 认证方式需要 cryptography 依赖，请先安装该依赖后再重试。")
+    )
+    try:
+        response = client.post(
+            "/api/scan",
+            json={
+                "mysql_dsn": "mysql+pymysql://user:pass@localhost/dm",
+            },
+        )
+    finally:
+        MySQLMetadataLoader.load = original_load
+
+    assert response.status_code == 400
+    assert "cryptography" in response.json()["detail"]
