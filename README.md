@@ -26,6 +26,7 @@
   - 扫描控制面板
   - 首页对象概览
   - 按类型对象列表
+  - 最近一次扫描失败汇总
   - 对象详情与完整链路图
   - 影响分析
   - 闭环分析
@@ -159,6 +160,8 @@ curl -X POST http://127.0.0.1:8000/api/scan \
   - 最多 3 跳影响分析
 - `/analysis/cycles`
   - 多表闭环分组分析
+- `/scan-failures`
+  - 最近一次扫描失败汇总，按来源类型和文件聚合展示 Kettle、Java 和 MySQL metadata 的失败项
 
 ## 常用接口
 
@@ -168,6 +171,7 @@ curl -X POST http://127.0.0.1:8000/api/scan \
 - `GET /api/tables/{table_key}/lineage`
 - `GET /api/tables/{table_key}/impact`
 - `GET /api/analysis/cycles`
+- `GET /api/scan-runs/latest/failures`
 - `GET /api/jobs`
 - `GET /api/jobs/{job_key}`
 - `GET /api/java-modules/{module_key}`

@@ -86,6 +86,39 @@ export interface CycleGroupSummaryResponse {
   items: CycleGroupSummaryItem[];
 }
 
+export interface ScanFailureRecord {
+  id: number;
+  scan_run_id: number;
+  source_type: string;
+  file_path: string;
+  failure_type: string;
+  message: string;
+  object_key?: string | null;
+  sql_snippet?: string | null;
+  created_at: string | null;
+}
+
+export interface ScanFailureFileGroup {
+  file_path: string;
+  failures: ScanFailureRecord[];
+}
+
+export interface ScanFailureSourceGroup {
+  source_type: string;
+  files: ScanFailureFileGroup[];
+}
+
+export interface ScanFailureSummaryResponse {
+  scan_run: ScanRunSummary | null;
+  summary: {
+    scan_run_id: number | null;
+    failure_count: number;
+    file_count: number;
+    source_counts: Record<string, number>;
+  };
+  groups: ScanFailureSourceGroup[];
+}
+
 export interface ScanRunSummary {
   id: number;
   status: string;

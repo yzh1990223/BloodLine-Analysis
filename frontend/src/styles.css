@@ -255,6 +255,11 @@ a {
   font-size: 14px;
 }
 
+.scan-meta-inline {
+  color: #52606d;
+  font-size: 14px;
+}
+
 .scan-actions {
   display: flex;
   flex-wrap: wrap;
@@ -415,6 +420,96 @@ a {
 
 .cycle-group-card h3 {
   margin: 0;
+}
+
+.failure-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.failure-source-group,
+.failure-file-group {
+  border: 1px solid #d7dce2;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.failure-source-group {
+  padding: 14px 16px;
+}
+
+.failure-source-summary,
+.failure-file-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  cursor: pointer;
+  font-weight: 700;
+  color: #12344d;
+}
+
+.failure-source-summary {
+  list-style: none;
+}
+
+.failure-source-summary::-webkit-details-marker,
+.failure-file-summary::-webkit-details-marker {
+  display: none;
+}
+
+.failure-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.failure-file-group {
+  padding: 12px 14px;
+}
+
+.failure-file-summary {
+  list-style: none;
+}
+
+.failure-item-list {
+  margin: 12px 0 0;
+  padding-left: 18px;
+}
+
+.failure-item {
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.failure-item-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.failure-message {
+  margin: 0;
+  color: #52606d;
+}
+
+.failure-snippet {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f6f8fb;
+  color: #344054;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.failure-empty {
+  margin: 0;
+  color: #52606d;
 }
 
 .overview-legend {

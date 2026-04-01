@@ -94,6 +94,9 @@ test("loads overview stats on first render and only fetches lineage when an item
   expect(screen.getByRole("link", { name: "查看数据视图对象列表" }).getAttribute("href")).toBe(
     "/objects?type=table_view",
   );
+  expect(screen.getByRole("link", { name: "查看最近扫描失败汇总" }).getAttribute("href")).toBe(
+    "/scan-failures",
+  );
   expect(screen.getByText("API接口")).toBeTruthy();
   expect(screen.getByRole("link", { name: "查看 API 接口对象列表" }).getAttribute("href")).toBe(
     "/objects?type=api_endpoint",

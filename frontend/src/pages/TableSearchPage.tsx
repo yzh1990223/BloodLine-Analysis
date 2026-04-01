@@ -117,6 +117,10 @@ export function TableSearchPage() {
 
       <ScanControlPanel onScanCompleted={() => loadCatalog()} />
 
+      <div className="page-actions">
+        <Link to="/scan-failures">查看最近扫描失败汇总</Link>
+      </div>
+
       <section className="panel">
         <div className="panel-header">
           <div>

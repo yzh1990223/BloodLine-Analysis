@@ -4,6 +4,7 @@ import {
   CycleGroupSummaryResponse,
   LatestScanRunResponse,
   ScanRequestPayload,
+  ScanFailureSummaryResponse,
   SearchResponse,
   TableImpactResponse,
   TableLineageResponse,
@@ -80,4 +81,9 @@ export function createScan(payload: ScanRequestPayload): Promise<CreateScanRespo
 export function fetchCycleGroups(): Promise<CycleGroupSummaryResponse> {
   /** Load grouped multi-table closed loops for the dedicated analysis page. */
   return requestJson<CycleGroupSummaryResponse>("/api/analysis/cycles");
+}
+
+export function fetchLatestScanFailures(): Promise<ScanFailureSummaryResponse> {
+  /** Load the latest scan failure summary grouped by source and file. */
+  return requestJson<ScanFailureSummaryResponse>("/api/scan-runs/latest/failures");
 }

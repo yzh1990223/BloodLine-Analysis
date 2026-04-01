@@ -17,6 +17,7 @@ test("renders the global navigation on the home route", () => {
   expect(screen.getByRole("navigation", { name: "主导航" })).toBeTruthy();
   expect(screen.getAllByRole("link", { name: "总览" }).length).toBeGreaterThan(0);
   expect(screen.getByRole("link", { name: "表搜索" })).toBeTruthy();
+  expect(screen.getByRole("link", { name: "失败汇总" })).toBeTruthy();
   expect(screen.getByText("当前位置")).toBeTruthy();
 });
 
@@ -44,4 +45,16 @@ test("renders breadcrumb location on the object list route", () => {
   const breadcrumbs = screen.getByLabelText("面包屑");
   expect(within(breadcrumbs).getByRole("link", { name: "总览" })).toBeTruthy();
   expect(within(breadcrumbs).getByText("对象列表")).toBeTruthy();
+});
+
+test("renders breadcrumb location on the failure summary route", () => {
+  render(
+    <MemoryRouter initialEntries={["/scan-failures"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  const breadcrumbs = screen.getByLabelText("面包屑");
+  expect(within(breadcrumbs).getByRole("link", { name: "总览" })).toBeTruthy();
+  expect(within(breadcrumbs).getByText("失败汇总")).toBeTruthy();
 });
