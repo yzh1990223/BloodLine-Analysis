@@ -39,6 +39,28 @@ def test_extract_tables_returns_empty_for_unstable_dynamic_mybatis_sql():
     assert writes == set()
 
 
+def test_extract_tables_excludes_cte_aliases_but_keeps_underlying_tables():
+    reads, writes = extract_tables(
+        """
+        WITH base AS (
+            SELECT * FROM ods.orders
+        ),
+        base1 AS (
+            SELECT * FROM dm.dim_user
+        ),
+        base2 AS (
+            SELECT *
+            FROM base
+            JOIN base1 ON base.user_id = base1.id
+        )
+        SELECT * FROM base2
+        """
+    )
+
+    assert reads == {"dm.dim_user", "ods.orders"}
+    assert writes == set()
+
+
 def test_java_parser_emits_method_scoped_statement_facts():
     parser = JavaSqlParser()
     result = parser.parse_file(Path("tests/fixtures/java_method_model/OrderService.java"))

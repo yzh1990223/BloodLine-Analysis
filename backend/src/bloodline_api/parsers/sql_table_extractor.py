@@ -28,6 +28,17 @@ def _target_table(expression: exp.Expression) -> exp.Table | None:
     return None
 
 
+def _cte_aliases(expression: exp.Expression) -> set[str]:
+    """Return normalized CTE aliases so they can be excluded from physical table facts."""
+
+    aliases: set[str] = set()
+    for cte in expression.find_all(exp.CTE):
+        alias = cte.alias_or_name
+        if alias:
+            aliases.add(alias.lower())
+    return aliases
+
+
 def extract_tables_with_error(sql: str) -> tuple[set[str], set[str], str | None]:
     """Split SQL table usage into read tables and write tables, preserving parse errors."""
 
@@ -39,8 +50,13 @@ def extract_tables_with_error(sql: str) -> tuple[set[str], set[str], str | None]
 
     target = _target_table(expression)
     target_sql = _table_name(target) if target is not None else None
+    cte_aliases = _cte_aliases(expression)
 
-    tables = {_table_name(table) for table in expression.find_all(exp.Table)}
+    tables = {
+        table_name
+        for table in expression.find_all(exp.Table)
+        if (table_name := _table_name(table)) and table_name.lower() not in cte_aliases
+    }
     reads = set(tables)
     writes: set[str] = set()
 
