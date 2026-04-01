@@ -71,6 +71,30 @@ npm run dev
 
 前端开发环境默认通过 Vite 代理访问同机后端 `/api`。
 
+## Windows 双击启动
+
+如果你在 Windows 环境下使用项目根目录，可以直接双击这些脚本：
+
+- `start-backend.bat`
+  - 自动执行后端 Alembic 迁移
+  - 启动 `http://127.0.0.1:8000`
+- `start-frontend.bat`
+  - 启动 `http://127.0.0.1:5173`
+- `start-all.bat`
+  - 同时打开前后端两个独立窗口
+
+首次使用前请先完成依赖安装：
+
+```powershell
+cd backend
+uv sync --project . --extra dev
+
+cd ../frontend
+npm install
+```
+
+如果依赖缺失，`.bat` 脚本会给出中文提示，而不是直接闪退。
+
 ## 样例扫描
 
 启动后端后，可以使用仓库内置样例触发一次扫描：
