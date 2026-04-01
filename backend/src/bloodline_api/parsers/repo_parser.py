@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 import re
 
 from bloodline_api.connectors.repo_reader import read_repo_root
-from bloodline_api.parsers.sql_table_extractor import extract_tables
+from bloodline_api.parsers.sql_table_extractor import extract_tables_with_error
 
 
 @dataclass(slots=True)
@@ -45,6 +45,18 @@ class RepoParseResult:
     step_writes: dict[str, list[ObjectRef]] = field(default_factory=dict)
     job_reads: dict[str, list[ObjectRef]] = field(default_factory=dict)
     job_writes: dict[str, list[ObjectRef]] = field(default_factory=dict)
+    parse_failures: list["RepoSqlParseFailure"] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class RepoSqlParseFailure:
+    """A SQL fragment in one repo file that failed table extraction."""
+
+    file_path: str
+    failure_type: str
+    message: str
+    object_key: str | None
+    sql_snippet: str
 
 
 def _step_key(transformation_name: str, step_name: str) -> str:
@@ -88,17 +100,18 @@ def _step_nodes(transformation: ET.Element) -> list[ET.Element]:
     return transformation.findall("./steps/step") or transformation.findall("./step")
 
 
-def _extract_sql_tables(sql: str) -> tuple[set[str], set[str]]:
+def _extract_sql_tables(sql: str) -> tuple[set[str], set[str], str | None]:
     """Best-effort SQL extraction that skips malformed repo SQL placeholders."""
 
     try:
-        reads, writes = extract_tables(sql)
+        reads, writes, parse_error = extract_tables_with_error(sql)
         return (
             {_normalize_table_name(name) for name in reads},
             {_normalize_table_name(name) for name in writes},
+            parse_error,
         )
     except RecursionError:
-        return set(), set()
+        return set(), set(), "SQL 解析递归过深，已跳过该片段。"
 
 
 def _job_entry_key(job_name: str, entry_name: str) -> str:
@@ -143,15 +156,16 @@ def _sorted_objects(items: set[ObjectRef]) -> list[ObjectRef]:
     return sorted(items, key=lambda item: (item.object_type, item.name))
 
 
-def _read_objects_for_step(step: ET.Element) -> set[ObjectRef]:
+def _read_objects_for_step(step: ET.Element) -> tuple[set[ObjectRef], str | None, str | None]:
     """Extract read-side lineage objects from a repo step."""
 
     step_type = step.findtext("type", default="").strip()
     reads: set[ObjectRef] = set()
     sql = step.findtext("sql", default="").strip()
+    parse_error: str | None = None
 
     if sql:
-        sql_reads, _ = _extract_sql_tables(sql)
+        sql_reads, _, parse_error = _extract_sql_tables(sql)
         reads.update(ObjectRef(name=name, object_type="data_table") for name in sql_reads)
 
     if step_type == "TableInput" and not reads:
@@ -175,18 +189,19 @@ def _read_objects_for_step(step: ET.Element) -> set[ObjectRef]:
         if file_name:
             reads.add(ObjectRef(name=file_name, object_type="source_file"))
 
-    return reads
+    return reads, parse_error, sql or None
 
 
-def _write_objects_for_step(step: ET.Element) -> set[ObjectRef]:
+def _write_objects_for_step(step: ET.Element) -> tuple[set[ObjectRef], str | None, str | None]:
     """Extract write-side lineage objects from direct output steps or SQL mutations."""
 
     step_type = step.findtext("type", default="").strip()
     writes: set[ObjectRef] = set()
     sql = step.findtext("sql", default="").strip()
+    parse_error: str | None = None
 
     if sql:
-        _, sql_writes = _extract_sql_tables(sql)
+        _, sql_writes, parse_error = _extract_sql_tables(sql)
         writes.update(ObjectRef(name=name, object_type="data_table") for name in sql_writes)
 
     if step_type == "TableOutput":
@@ -205,25 +220,30 @@ def _write_objects_for_step(step: ET.Element) -> set[ObjectRef]:
         if table_name is not None:
             writes.add(ObjectRef(name=table_name, object_type="data_table"))
 
-    return writes
+    return writes, parse_error, sql or None
 
 
-def _job_sql_objects(entry: ET.Element) -> tuple[set[ObjectRef], set[ObjectRef]]:
+def _job_sql_objects(
+    entry: ET.Element,
+) -> tuple[set[ObjectRef], set[ObjectRef], list[tuple[str, str]]]:
     """Extract read/write objects from one SQL job entry, including multi-statement blobs."""
 
     sql = entry.findtext("sql", default="").strip()
     reads: set[ObjectRef] = set()
     writes: set[ObjectRef] = set()
+    failures: list[tuple[str, str]] = []
 
     for statement in _split_sql_statements(sql):
-        statement_reads, statement_writes = _extract_sql_tables(statement)
+        statement_reads, statement_writes, parse_error = _extract_sql_tables(statement)
         reads.update(ObjectRef(name=name, object_type="data_table") for name in statement_reads)
         writes.update(ObjectRef(name=name, object_type="data_table") for name in statement_writes)
+        if parse_error:
+            failures.append((parse_error, statement))
         truncate_target = _truncate_target(statement)
         if truncate_target is not None:
             writes.add(ObjectRef(name=truncate_target, object_type="data_table"))
 
-    return reads, writes
+    return reads, writes, failures
 
 
 class RepoParser:
@@ -262,11 +282,21 @@ class RepoParser:
                     continue
                 entry_name = entry.findtext("name", default="unknown_sql_entry").strip()
                 entry_key = _job_entry_key(name, entry_name)
-                reads, writes = _job_sql_objects(entry)
+                reads, writes, failures = _job_sql_objects(entry)
                 if reads:
                     result.job_reads[entry_key] = _sorted_objects(reads)
                 if writes:
                     result.job_writes[entry_key] = _sorted_objects(writes)
+                for failure_message, sql_snippet in failures:
+                    result.parse_failures.append(
+                        RepoSqlParseFailure(
+                            file_path=str(path),
+                            failure_type="sql_parse_error",
+                            message=failure_message,
+                            object_key=f"job:{name}",
+                            sql_snippet=sql_snippet,
+                        )
+                    )
 
         for transformation in root.findall(".//transformations/transformation"):
             transformation_name = _transformation_name(transformation)
@@ -276,12 +306,32 @@ class RepoParser:
 
             for step in _step_nodes(transformation):
                 step_name = step.findtext("name", default="unknown_step").strip()
-                reads = _read_objects_for_step(step)
-                writes = _write_objects_for_step(step)
+                reads, read_error, read_sql = _read_objects_for_step(step)
+                writes, write_error, write_sql = _write_objects_for_step(step)
                 step_key = _step_key(transformation_name, step_name)
                 if reads:
                     result.step_reads[step_key] = _sorted_objects(reads)
                 if writes:
                     result.step_writes[step_key] = _sorted_objects(writes)
+                if read_error:
+                    result.parse_failures.append(
+                        RepoSqlParseFailure(
+                            file_path=str(path),
+                            failure_type="sql_parse_error",
+                            message=read_error,
+                            object_key=f"transformation:{transformation_name}",
+                            sql_snippet=read_sql or "",
+                        )
+                    )
+                if write_error and write_error != read_error:
+                    result.parse_failures.append(
+                        RepoSqlParseFailure(
+                            file_path=str(path),
+                            failure_type="sql_parse_error",
+                            message=write_error,
+                            object_key=f"transformation:{transformation_name}",
+                            sql_snippet=write_sql or "",
+                        )
+                    )
 
         return result

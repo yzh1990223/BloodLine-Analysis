@@ -162,6 +162,7 @@ curl -X POST http://127.0.0.1:8000/api/scan \
   - 多表闭环分组分析
 - `/scan-failures`
   - 最近一次扫描失败汇总，按来源类型和文件聚合展示 Kettle、Java 和 MySQL metadata 的失败项
+  - 每条失败会展示文件路径、失败类型、失败原因，以及相关对象或 SQL 片段摘要，方便定位局部解析问题
 
 ## 常用接口
 

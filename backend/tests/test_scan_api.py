@@ -266,3 +266,67 @@ def test_scan_returns_friendly_error_for_mysql_metadata_connection_failure(clien
 
     assert response.status_code == 400
     assert "cryptography" in response.json()["detail"]
+
+
+def test_scan_records_repo_and_java_sql_parse_failures_without_aborting(client, tmp_path):
+    repo_file = tmp_path / "broken.repo.xml"
+    repo_file.write_text(
+        """
+        <repository>
+          <transformations>
+            <transformation>
+              <name>broken_sql_transformation</name>
+              <steps>
+                <step>
+                  <name>broken_input</name>
+                  <sql>select * from</sql>
+                </step>
+              </steps>
+            </transformation>
+          </transformations>
+        </repository>
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    java_root = tmp_path / "java"
+    java_root.mkdir()
+    (java_root / "BrokenSqlService.java").write_text(
+        """
+        package com.demo;
+
+        public class BrokenSqlService {
+            public void run() {
+                String sql = "select * from";
+            }
+        }
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    response = client.post(
+        "/api/scan",
+        json={
+            "repo_path": str(repo_file),
+            "java_source_root": str(java_root),
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "completed"
+
+    failures_response = client.get("/api/scan-runs/latest/failures")
+    assert failures_response.status_code == 200
+    body = failures_response.json()
+    assert body["summary"]["failure_count"] == 2
+    assert body["summary"]["source_counts"] == {"kettle": 1, "java": 1, "metadata": 0}
+
+    groups = {item["source_type"]: item for item in body["groups"]}
+    kettle_failure = groups["kettle"]["files"][0]["failures"][0]
+    java_failure = groups["java"]["files"][0]["failures"][0]
+    assert kettle_failure["failure_type"] == "sql_parse_error"
+    assert "Expected table name" in kettle_failure["message"]
+    assert kettle_failure["sql_snippet"] == "select * from"
+    assert java_failure["failure_type"] == "sql_parse_error"
+    assert "Expected table name" in java_failure["message"]
+    assert java_failure["sql_snippet"] == "select * from"

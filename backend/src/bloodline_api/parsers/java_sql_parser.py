@@ -14,7 +14,7 @@ from bloodline_api.parsers.java_symbol_parser import parse_extended_type
 from bloodline_api.parsers.java_symbol_parser import parse_field_types
 from bloodline_api.parsers.java_symbol_parser import parse_implemented_types
 from bloodline_api.parsers.java_symbol_parser import parse_method_scopes
-from bloodline_api.parsers.sql_table_extractor import extract_tables
+from bloodline_api.parsers.sql_table_extractor import extract_tables_with_error
 
 # Only string literals that look like SQL statements are considered in the MVP.
 SQL_STRING_PATTERN = re.compile(r'"((?:\\.|[^"\\])*)"')
@@ -34,6 +34,7 @@ class JavaModuleParseResult:
     receiver_types: dict[str, str]
     implemented_types: list[str]
     extended_type: str | None
+    parse_failures: list["JavaSqlParseFailure"]
 
 
 @dataclass(slots=True)
@@ -54,6 +55,17 @@ class JavaMethodFact:
     calls: list[str]
 
 
+@dataclass(slots=True)
+class JavaSqlParseFailure:
+    """One SQL fragment in a Java file that could not be parsed into table facts."""
+
+    file_path: str
+    failure_type: str
+    message: str
+    object_key: str | None
+    sql_snippet: str
+
+
 class JavaSqlParser:
     """Extract table-level lineage facts from simple SQL-bearing Java files."""
 
@@ -69,6 +81,7 @@ class JavaSqlParser:
         implemented_types = parse_implemented_types(source)
         extended_type = parse_extended_type(source)
         method_call_map = build_method_call_map(method_scopes)
+        parse_failures: list[JavaSqlParseFailure] = []
         methods = {
             scope.method_name: JavaMethodFact(
                 method_name=scope.method_name,
@@ -86,7 +99,17 @@ class JavaSqlParser:
             if ANNOTATION_PREFIX_PATTERN.search(line_prefix.strip()):
                 continue
             statement_id = f"sql_{index}"
-            sql_reads, sql_writes = extract_tables(sql)
+            sql_reads, sql_writes, parse_error = extract_tables_with_error(sql)
+            if parse_error:
+                parse_failures.append(
+                    JavaSqlParseFailure(
+                        file_path=str(path),
+                        failure_type="sql_parse_error",
+                        message=parse_error,
+                        object_key=f"java_module:{path.stem}",
+                        sql_snippet=sql,
+                    )
+                )
             statements.append(
                 JavaSqlStatement(
                     statement_id=statement_id,
@@ -105,7 +128,17 @@ class JavaSqlParser:
         for annotated in [*extract_annotated_method_sql(source), *extract_xml_method_sql(path)]:
             statement_id = f"sql_{next_statement_index}"
             next_statement_index += 1
-            sql_reads, sql_writes = extract_tables(annotated.sql)
+            sql_reads, sql_writes, parse_error = extract_tables_with_error(annotated.sql)
+            if parse_error:
+                parse_failures.append(
+                    JavaSqlParseFailure(
+                        file_path=str(path),
+                        failure_type="sql_parse_error",
+                        message=parse_error,
+                        object_key=f"java_module:{path.stem}#{annotated.method_name}",
+                        sql_snippet=annotated.sql,
+                    )
+                )
             if not sql_reads and not sql_writes:
                 continue
             statements.append(
@@ -131,4 +164,5 @@ class JavaSqlParser:
             receiver_types=receiver_types,
             implemented_types=implemented_types,
             extended_type=extended_type,
+            parse_failures=parse_failures,
         )

@@ -635,6 +635,17 @@ class LineageQueryService:
                     message=str(exc),
                 )
                 continue
+            for failure in repo_result.parse_failures:
+                self._record_scan_failure(
+                    db,
+                    scan_run=scan_run,
+                    source_type="kettle",
+                    file_path=failure.file_path,
+                    failure_type=failure.failure_type,
+                    message=failure.message,
+                    object_key=failure.object_key,
+                    sql_snippet=failure.sql_snippet,
+                )
             job_nodes = {
                 job.name: self._get_or_create_node(db, "job", f"job:{job.name}", job.name)
                 for job in repo_result.jobs
@@ -750,7 +761,7 @@ class LineageQueryService:
             java_api_facts = []
             for java_file in deduped_java_files:
                 try:
-                    java_results.append(JavaSqlParser().parse_file(java_file))
+                    java_result = JavaSqlParser().parse_file(java_file)
                 except Exception as exc:  # pragma: no cover - defensive scan record
                     self._record_scan_failure(
                         db,
@@ -761,6 +772,18 @@ class LineageQueryService:
                         message=str(exc),
                     )
                     continue
+                for failure in java_result.parse_failures:
+                    self._record_scan_failure(
+                        db,
+                        scan_run=scan_run,
+                        source_type="java",
+                        file_path=failure.file_path,
+                        failure_type=failure.failure_type,
+                        message=failure.message,
+                        object_key=failure.object_key,
+                        sql_snippet=failure.sql_snippet,
+                    )
+                java_results.append(java_result)
                 try:
                     java_api_facts.extend(parse_controller_endpoints(java_file))
                 except Exception as exc:  # pragma: no cover - defensive scan record
