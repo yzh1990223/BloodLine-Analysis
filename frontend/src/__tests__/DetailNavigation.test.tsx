@@ -25,13 +25,16 @@ vi.mock("../api", () => ({
           key: "table:ods.orders",
           name: "ods.orders",
           display_name: "订单表",
-          metadata: {
-            database_name: "ods",
-            object_name: "orders",
-            object_kind: "table",
-            comment: "订单表",
-            column_count: 8,
-            metadata_source: "mysql_information_schema",
+            metadata: {
+              database_name: "ods",
+              object_name: "orders",
+              object_kind: "view",
+              comment: "订单表",
+              column_count: 8,
+              metadata_source: "mysql_information_schema",
+            view_parse_status: "failed",
+            view_parse_error: "Missing )",
+            view_definition: "select * from ods.orders where id in (",
           },
         },
         upstream_tables: [],
@@ -82,9 +85,11 @@ test("table detail page renders metadata summary when available", async () => {
   expect(screen.getAllByText("ods.orders").length).toBeGreaterThan(0);
   expect(screen.getByText("数据库：ods")).toBeTruthy();
   expect(screen.getByText("技术名称：orders")).toBeTruthy();
-  expect(screen.getByText("对象种类：table")).toBeTruthy();
+  expect(screen.getByText("对象种类：view")).toBeTruthy();
   expect(screen.getByText("字段数：8")).toBeTruthy();
   expect(screen.getByText("中文名称：订单表")).toBeTruthy();
+  expect(screen.getByText("视图解析状态：失败")).toBeTruthy();
+  expect(screen.getByText("失败原因：Missing )")).toBeTruthy();
 });
 
 test("impact page shows back buttons to detail and overview", async () => {

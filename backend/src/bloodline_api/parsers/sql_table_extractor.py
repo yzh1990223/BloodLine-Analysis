@@ -28,14 +28,14 @@ def _target_table(expression: exp.Expression) -> exp.Table | None:
     return None
 
 
-def extract_tables(sql: str) -> tuple[set[str], set[str]]:
-    """Split SQL table usage into read tables and write tables."""
+def extract_tables_with_error(sql: str) -> tuple[set[str], set[str], str | None]:
+    """Split SQL table usage into read tables and write tables, preserving parse errors."""
 
     try:
         expression = parse_one(sql, read="mysql")
     except (ParseError, TokenError) as exc:
         LOGGER.warning("Skipping unsupported SQL fragment during table extraction: %s", exc)
-        return set(), set()
+        return set(), set(), str(exc)
 
     target = _target_table(expression)
     target_sql = _table_name(target) if target is not None else None
@@ -48,4 +48,11 @@ def extract_tables(sql: str) -> tuple[set[str], set[str]]:
         writes.add(target_sql)
         reads.discard(target_sql)
 
+    return reads, writes, None
+
+
+def extract_tables(sql: str) -> tuple[set[str], set[str]]:
+    """Split SQL table usage into read tables and write tables."""
+
+    reads, writes, _error = extract_tables_with_error(sql)
     return reads, writes

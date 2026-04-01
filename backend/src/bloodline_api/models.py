@@ -91,6 +91,9 @@ class ObjectMetadata(Base):
     object_name: Mapped[str] = mapped_column(String(255), nullable=False)
     object_kind: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     comment: Mapped[str | None] = mapped_column(String(1024), nullable=True)
+    view_definition: Mapped[str | None] = mapped_column(String, nullable=True)
+    view_parse_status: Mapped[str] = mapped_column(String(32), nullable=False, default="not_applicable")
+    view_parse_error: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     metadata_source: Mapped[str] = mapped_column(String(64), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

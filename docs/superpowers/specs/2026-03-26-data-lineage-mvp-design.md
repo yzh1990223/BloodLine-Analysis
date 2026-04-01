@@ -237,11 +237,13 @@ MVP 当前只生成对象级 / 表级 `FLOWS_TO`。
 
 ## 10. 当前 SQLite 表设计
 
-当前实现使用 SQLite 持久化，核心表只有 3 张：
+当前实现使用 SQLite 持久化，核心图表与元数据表包括：
 
 - `scan_runs`
 - `nodes`
 - `edges`
+- `object_metadata`
+- `object_metadata_columns`
 
 设计原则是：
 
@@ -252,7 +254,8 @@ MVP 当前只生成对象级 / 表级 `FLOWS_TO`。
 注意：
 
 - 以上是**当前实际实现**
-- `#3 MySQL 元数据接入` 已另有设计，计划后续新增元数据表，但尚未落地到当前代码
+- `#3 MySQL 元数据接入` 已经落地为独立元数据表
+- `#39` 继续在该基础上增加了 `VIEW_DEFINITION` 解析状态与错误信息承载
 
 ### 10.1 `scan_runs`
 
@@ -312,9 +315,7 @@ MVP 当前只生成对象级 / 表级 `FLOWS_TO`。
 - Transformation 节点
 - Java 模块节点
 
-### 10.4 已设计但未落地的元数据扩展
-
-围绕 `#3 MySQL 元数据接入`，当前已确定的扩展方向是：
+### 10.4 元数据扩展实现
 
 - 新增 `object_metadata`
   - 保存对象级最新元数据
@@ -323,11 +324,18 @@ MVP 当前只生成对象级 / 表级 `FLOWS_TO`。
   - 保存字段级最新元数据
   - 与 `object_metadata.id` 一对多关联
 
+- `object_metadata` 当前还包括：
+  - `view_definition`
+  - `view_parse_status`
+  - `view_parse_error`
+
 设计意图：
 
 - `nodes` 继续承担图模型主键职责
 - 完整数据库元数据从 `nodes.payload` 中剥离
 - `data_table / table_view` 的详情、库名、字段摘要通过元数据表读取
+- 视图对象会额外记录 `VIEW_DEFINITION` 解析状态
+- 解析失败时不会阻断整次扫描，错误信息会在详情页展示
 - 第一版只保存“当前最新元数据”，不保存按 `scan_run` 的历史快照
 
 ### 10.3 `edges`

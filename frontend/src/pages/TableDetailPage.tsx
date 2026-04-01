@@ -84,6 +84,14 @@ export function TableDetailPage() {
             <p>对象种类：{lineage.table.metadata.object_kind}</p>
             <p>字段数：{lineage.table.metadata.column_count}</p>
             {lineage.table.metadata.comment ? <p>中文名称：{lineage.table.metadata.comment}</p> : null}
+            {lineage.table.metadata.object_kind === "view" && lineage.table.metadata.view_parse_status === "failed" ? (
+              <>
+                <p>视图解析状态：失败</p>
+                {lineage.table.metadata.view_parse_error ? (
+                  <p>失败原因：{lineage.table.metadata.view_parse_error}</p>
+                ) : null}
+              </>
+            ) : null}
           </div>
         </section>
       ) : null}

@@ -73,6 +73,7 @@ def test_mysql_metadata_loader_reads_tables_views_and_columns():
                 "object_name": "user_order_view",
                 "object_kind": "view",
                 "comment": "summary view",
+                "view_definition": "select * from ods.orders",
                 "column_name": "user_id",
                 "data_type": "bigint",
                 "ordinal_position": 1,
@@ -92,6 +93,7 @@ def test_mysql_metadata_loader_reads_tables_views_and_columns():
     assert [column.column_name for column in objects[0].columns] == ["user_id", "order_count"]
     assert objects[0].columns[0].is_nullable is False
     assert objects[1].object_kind == "view"
+    assert objects[1].view_definition == "select * from ods.orders"
 
 
 def test_mysql_metadata_loader_returns_friendly_error_for_missing_cryptography():

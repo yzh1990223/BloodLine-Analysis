@@ -14,6 +14,8 @@
 - 支持在扫描时实时接入 MySQL `information_schema` 元数据
 - 支持按库白名单读取 metadata，并将表 / 视图归并到统一对象图
 - 使用独立元数据表 `object_metadata` / `object_metadata_columns` 保存最新 metadata
+- 支持从 `INFORMATION_SCHEMA.VIEWS.VIEW_DEFINITION` 解析视图血缘
+- 视图解析失败时不会中断整次扫描，详情页会展示具体失败原因
 - 统一构建对象级血缘图，并派生 `FLOWS_TO` 表级关系
 - 支持对象类型区分：
   - `data_table`
@@ -152,6 +154,7 @@ curl -X POST http://127.0.0.1:8000/api/scan \
   - 按类型浏览对象
 - `/tables/:tableKey`
   - 详情页、直接上下游、完整链路图、API 终点节点、关联对象高亮、元数据摘要
+  - 视图对象会展示 `VIEW_DEFINITION` 解析状态与失败原因
 - `/tables/:tableKey/impact`
   - 最多 3 跳影响分析
 - `/analysis/cycles`

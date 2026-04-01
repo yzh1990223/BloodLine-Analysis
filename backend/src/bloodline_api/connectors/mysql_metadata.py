@@ -49,6 +49,7 @@ class MySQLMetadataObject:
     object_name: str
     object_kind: str
     comment: str | None
+    view_definition: str | None
     columns: list[MySQLMetadataColumn]
 
 
@@ -62,6 +63,7 @@ INFORMATION_SCHEMA_SQL = text(
             ELSE 'table'
         END AS object_kind,
         t.table_comment AS comment,
+        v.view_definition AS view_definition,
         c.column_name AS column_name,
         c.data_type AS data_type,
         c.ordinal_position AS ordinal_position,
@@ -71,6 +73,9 @@ INFORMATION_SCHEMA_SQL = text(
     JOIN information_schema.tables t
       ON t.table_schema = c.table_schema
      AND t.table_name = c.table_name
+    LEFT JOIN information_schema.views v
+      ON v.table_schema = c.table_schema
+     AND v.table_name = c.table_name
     WHERE c.table_schema IN :schemas
     ORDER BY c.table_schema, c.table_name, c.ordinal_position
     """
@@ -118,7 +123,7 @@ class MySQLMetadataLoader:
     def load(self, request: MySQLMetadataRequest) -> list[MySQLMetadataObject]:
         """Return grouped table/view metadata for the requested database scope."""
 
-        grouped: dict[tuple[str, str, str, str | None], list[dict[str, Any]]] = {}
+        grouped: dict[tuple[str, str, str, str | None, str | None], list[dict[str, Any]]] = {}
         try:
             rows = self._row_fetcher(request)
         except RuntimeError as exc:
@@ -147,6 +152,7 @@ class MySQLMetadataLoader:
                 str(row["object_name"]),
                 str(row["object_kind"]),
                 row.get("comment"),
+                row.get("view_definition"),
             )
             grouped.setdefault(key, []).append(row)
 
@@ -159,6 +165,7 @@ class MySQLMetadataLoader:
                     object_name=key[1],
                     object_kind=key[2],
                     comment=key[3],
+                    view_definition=key[4],
                     columns=[
                         MySQLMetadataColumn(
                             column_name=str(row["column_name"]),

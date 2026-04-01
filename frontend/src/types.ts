@@ -14,6 +14,9 @@ export interface ObjectMetadataSummary {
   object_kind: string;
   comment: string | null;
   column_count: number;
+  view_definition?: string | null;
+  view_parse_status?: string;
+  view_parse_error?: string | null;
   metadata_source: string;
 }
 

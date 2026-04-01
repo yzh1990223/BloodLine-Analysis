@@ -18,6 +18,7 @@ from bloodline_api.parsers.java_lineage_reducer import reduce_java_api_endpoints
 from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.repo_parser import RepoParser
+from bloodline_api.parsers.sql_table_extractor import extract_tables_with_error
 from bloodline_api.services.graph_builder import build_table_flows
 
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
@@ -138,6 +139,9 @@ def _serialize_object(node: Node) -> dict[str, Any]:
             "object_kind": metadata.object_kind,
             "comment": metadata.comment,
             "column_count": len(metadata.columns),
+            "view_definition": metadata.view_definition,
+            "view_parse_status": metadata.view_parse_status,
+            "view_parse_error": metadata.view_parse_error,
             "metadata_source": metadata.metadata_source,
         }
     return payload
@@ -207,6 +211,9 @@ class LineageQueryService:
                 object_name=metadata_object.object_name,
                 object_kind=metadata_object.object_kind,
                 comment=metadata_object.comment,
+                view_definition=metadata_object.view_definition,
+                view_parse_status="not_applicable",
+                view_parse_error=None,
                 metadata_source="mysql_information_schema",
             )
             db.add(metadata)
@@ -216,7 +223,14 @@ class LineageQueryService:
             metadata.object_name = metadata_object.object_name
             metadata.object_kind = metadata_object.object_kind
             metadata.comment = metadata_object.comment
+            metadata.view_definition = metadata_object.view_definition
             metadata.metadata_source = "mysql_information_schema"
+        if metadata_object.object_kind == "view":
+            metadata.view_parse_status = "not_applicable"
+            metadata.view_parse_error = None
+        else:
+            metadata.view_parse_status = "not_applicable"
+            metadata.view_parse_error = None
 
         metadata.columns[:] = [
             ObjectMetadataColumn(
@@ -229,6 +243,40 @@ class LineageQueryService:
             for column in metadata_object.columns
         ]
         db.flush()
+
+    def _derive_view_definition_facts(
+        self,
+        db: Session,
+        *,
+        object_nodes: dict[str, Node],
+        metadata_aliases: dict[str, Node],
+        fact_edges: list[tuple[str, str, str]],
+    ) -> None:
+        """Turn parsed view definitions into table-flow facts without failing the full scan."""
+
+        for node in list(object_nodes.values()):
+            metadata = node.object_metadata
+            if metadata is None or metadata.object_kind != "view" or not metadata.view_definition:
+                continue
+
+            reads, _writes, parse_error = extract_tables_with_error(metadata.view_definition)
+            if reads:
+                metadata.view_parse_status = "parsed"
+                metadata.view_parse_error = None
+                for table_name in sorted(reads):
+                    table_node = self._resolve_object_node(
+                        db,
+                        name=table_name,
+                        object_type="data_table",
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
+                    )
+                    fact_edges.append(("READS", node.key, table_node.key))
+                fact_edges.append(("WRITES", node.key, node.key))
+            else:
+                metadata.view_parse_status = "failed"
+                metadata.view_parse_error = parse_error or "无法从 VIEW_DEFINITION 中识别底层对象，请检查 SQL 方言或定义内容。"
+            db.flush()
 
     def _load_mysql_metadata_nodes(
         self,
@@ -468,6 +516,12 @@ class LineageQueryService:
             mysql_dsn=mysql_dsn,
             metadata_databases=metadata_databases,
             object_nodes=object_nodes,
+        )
+        self._derive_view_definition_facts(
+            db,
+            object_nodes=object_nodes,
+            metadata_aliases=metadata_aliases,
+            fact_edges=fact_edges,
         )
 
         for repo_file in _resolve_repo_paths(_normalized_input_values(repo_paths, repo_path)):

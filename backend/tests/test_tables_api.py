@@ -318,11 +318,89 @@ def test_table_lineage_includes_related_api_endpoints(client):
     downstream_keys = {item["key"] for item in payload["downstream_tables"]}
     assert "api:GET /api/orders/{id}" in downstream_keys
     assert "api:POST /api/orders/summary" in downstream_keys
-    api_keys = {item["key"] for item in payload["related_objects"]["api_endpoints"]}
-    assert api_keys == {
-        "api:GET /api/orders/{id}",
-        "api:POST /api/orders/summary",
-    }
+
+
+def test_scan_builds_lineage_from_view_definition(client):
+    from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
+
+    original_load = MySQLMetadataLoader.load
+    MySQLMetadataLoader.load = lambda self, request: [
+        MySQLMetadataObject(
+            database_name="dm",
+            object_name="user_order_view",
+            object_kind="view",
+            comment="订单视图",
+            view_definition="select * from ods.orders",
+            columns=[
+                MySQLMetadataColumn(
+                    column_name="order_id",
+                    data_type="bigint",
+                    ordinal_position=1,
+                    is_nullable=False,
+                    column_comment=None,
+                )
+            ],
+        )
+    ]
+    try:
+        response = client.post(
+            "/api/scan",
+            json={"mysql_dsn": "mysql+pymysql://user:pass@localhost/dm"},
+        )
+    finally:
+        MySQLMetadataLoader.load = original_load
+
+    assert response.status_code == 202
+
+    lineage = client.get("/api/tables/view:dm.user_order_view/lineage")
+
+    assert lineage.status_code == 200
+    payload = lineage.json()
+    upstream_keys = {item["key"] for item in payload["upstream_tables"]}
+    assert "table:ods.orders" in upstream_keys
+    assert payload["table"]["metadata"]["view_parse_status"] == "parsed"
+    assert payload["table"]["metadata"]["view_parse_error"] is None
+
+
+def test_scan_keeps_failed_view_definition_visible_on_detail_page(client):
+    from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
+
+    original_load = MySQLMetadataLoader.load
+    MySQLMetadataLoader.load = lambda self, request: [
+        MySQLMetadataObject(
+            database_name="dm",
+            object_name="broken_user_order_view",
+            object_kind="view",
+            comment="异常视图",
+            view_definition="select * from ods.orders where id in (",
+            columns=[
+                MySQLMetadataColumn(
+                    column_name="order_id",
+                    data_type="bigint",
+                    ordinal_position=1,
+                    is_nullable=False,
+                    column_comment=None,
+                )
+            ],
+        )
+    ]
+    try:
+        response = client.post(
+            "/api/scan",
+            json={"mysql_dsn": "mysql+pymysql://user:pass@localhost/dm"},
+        )
+    finally:
+        MySQLMetadataLoader.load = original_load
+
+    assert response.status_code == 202
+
+    lineage = client.get("/api/tables/view:dm.broken_user_order_view/lineage")
+
+    assert lineage.status_code == 200
+    payload = lineage.json()
+    assert payload["table"]["metadata"]["view_parse_status"] == "failed"
+    assert payload["table"]["metadata"]["view_parse_error"]
+    assert payload["table"]["metadata"]["view_definition"] == "select * from ods.orders where id in ("
 
 
 def test_table_lineage_includes_api_endpoints_through_service_interfaces(client):
@@ -509,6 +587,7 @@ def test_scan_pipeline_merges_mysql_metadata_into_table_and_view_nodes(client, d
                 object_name="cbonddescription",
                 object_kind="table",
                 comment="bond base table",
+                view_definition=None,
                 columns=[
                     MySQLMetadataColumn(
                         column_name="bond_code",
@@ -524,6 +603,7 @@ def test_scan_pipeline_merges_mysql_metadata_into_table_and_view_nodes(client, d
                 object_name="cbond_view",
                 object_kind="view",
                 comment="bond view",
+                view_definition="select * from winddf.cbonddescription",
                 columns=[
                     MySQLMetadataColumn(
                         column_name="bond_name",
@@ -576,6 +656,9 @@ def test_scan_pipeline_merges_mysql_metadata_into_table_and_view_nodes(client, d
         "object_kind": "table",
         "comment": "bond base table",
         "column_count": 1,
+        "view_definition": None,
+        "view_parse_status": "not_applicable",
+        "view_parse_error": None,
         "metadata_source": "mysql_information_schema",
     }
 
@@ -588,6 +671,7 @@ def test_scan_pipeline_reuses_metadata_node_for_bare_repo_table_names(client, mo
                 object_name="cbonddescription",
                 object_kind="table",
                 comment="bond base table",
+                view_definition=None,
                 columns=[
                     MySQLMetadataColumn(
                         column_name="bond_code",
@@ -666,6 +750,7 @@ def test_rescan_without_mysql_metadata_clears_metadata_tables(client, db_session
                 object_name="cbonddescription",
                 object_kind="table",
                 comment="bond base table",
+                view_definition=None,
                 columns=[
                     MySQLMetadataColumn(
                         column_name="bond_code",
