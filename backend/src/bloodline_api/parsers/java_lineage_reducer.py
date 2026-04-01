@@ -41,6 +41,9 @@ class ReducedJavaApiEndpointFact:
     method_name: str
     read_tables: list[str]
     write_tables: list[str]
+    resolved_call_count: int
+    unresolved_call_count: int
+    unresolved_reasons: list[dict[str, str]]
 
 
 @dataclass(slots=True)
@@ -48,6 +51,10 @@ class JavaTypeIndex:
     """Minimal type index used to resolve interface-backed receivers."""
 
     interface_to_impls: dict[str, list[str]]
+
+
+CRUD_METHODS = {"getById", "list", "page", "save", "updateById", "removeById"}
+SERVICE_IMPL_PATTERN = re.compile(r"ServiceImpl<\s*([\w\.\[\]<>]+)")
 
 
 def _receiver_to_module_name(receiver: str) -> str:
@@ -100,6 +107,17 @@ def _build_type_index(results: list[JavaModuleParseResult]) -> JavaTypeIndex:
     return JavaTypeIndex(interface_to_impls=interface_to_impls)
 
 
+def _mapper_type_from_service_impl(module: JavaModuleParseResult) -> str | None:
+    """Extract the mapper type from a ServiceImpl superclass declaration when present."""
+
+    if not module.extended_type:
+        return None
+    match = SERVICE_IMPL_PATTERN.search(module.extended_type)
+    if match is None:
+        return None
+    return _normalize_type_name(match.group(1))
+
+
 def _resolve_call_target(
     modules_by_name: dict[str, JavaModuleParseResult],
     type_index: JavaTypeIndex,
@@ -129,10 +147,72 @@ def _resolve_call_target(
 
     for target_module_name in candidate_module_names:
         target_module = modules_by_name.get(target_module_name)
-        if target_module is None or callee not in target_module.methods:
+        if target_module is None:
+            continue
+        if callee not in target_module.methods:
+            if callee in CRUD_METHODS:
+                mapper_type = _mapper_type_from_service_impl(target_module)
+                mapper_module = None if mapper_type is None else modules_by_name.get(mapper_type)
+                if mapper_module is not None and callee in mapper_module.methods:
+                    return mapper_type, callee
+            continue
+        target_method = target_module.methods[callee]
+        normalized_type = _normalize_type_name(declared_type) if declared_type else None
+        if (
+            declared_type
+            and target_module_name == normalized_type
+            and not target_method.statement_ids
+            and not target_method.calls
+        ):
             continue
         return target_module_name, callee
     return None
+
+
+def _classify_unresolved_call(
+    modules_by_name: dict[str, JavaModuleParseResult],
+    type_index: JavaTypeIndex,
+    current_module_name: str,
+    call: str,
+) -> str:
+    """Return a stable unresolved reason label for one Java call."""
+
+    if "." not in call:
+        return "unresolved_local_method"
+
+    receiver, callee = call.split(".", 1)
+    current_module = modules_by_name.get(current_module_name)
+    declared_type = None if current_module is None else current_module.receiver_types.get(receiver)
+    if not declared_type:
+        return "unresolved_receiver_type"
+
+    normalized_type = _normalize_type_name(declared_type)
+    impl_candidates = type_index.interface_to_impls.get(normalized_type, [])
+    if len(impl_candidates) > 1:
+        return "multiple_impl_candidates"
+
+    candidate_module_names = []
+    if len(impl_candidates) == 1:
+        candidate_module_names.extend(impl_candidates)
+    candidate_module_names.extend(_candidate_module_names_from_type(declared_type))
+    candidate_module_names.append(_receiver_to_module_name(receiver))
+
+    resolved_modules = [modules_by_name.get(name) for name in candidate_module_names if modules_by_name.get(name) is not None]
+    if not resolved_modules:
+        return "unresolved_receiver_target"
+
+    if not any(
+        callee in module.methods
+        and not (
+            normalized_type == module.module_name
+            and not module.methods[callee].statement_ids
+            and not module.methods[callee].calls
+        )
+        for module in resolved_modules
+    ):
+        return "unresolved_target_method"
+
+    return "unresolved_target"
 
 
 def _reduce_method_tables(
@@ -236,8 +316,14 @@ def reduce_java_modules(results: list[JavaModuleParseResult]) -> dict[str, Reduc
 def reduce_java_api_endpoints(
     endpoints: list[JavaApiEndpointFact],
     reduced_modules: dict[str, ReducedJavaModuleFact],
+    source_results: list[JavaModuleParseResult] | None = None,
 ) -> list[ReducedJavaApiEndpointFact]:
     """Reduce controller endpoints into endpoint-scoped table facts."""
+
+    source_modules_by_name = {} if source_results is None else {result.module_name: result for result in source_results}
+    source_type_index = JavaTypeIndex(interface_to_impls={})
+    if source_results is not None:
+        source_type_index = _build_type_index(source_results)
 
     reduced: list[ReducedJavaApiEndpointFact] = []
     for endpoint in endpoints:
@@ -247,6 +333,28 @@ def reduce_java_api_endpoints(
         method = module.methods.get(endpoint.method_name)
         if method is None:
             continue
+        source_module = source_modules_by_name.get(endpoint.controller_module_name)
+        source_method = None if source_module is None else source_module.methods.get(endpoint.method_name)
+        resolved_call_count = 0
+        unresolved_call_count = 0
+        unresolved_reasons: list[dict[str, str]] = []
+        if source_method is not None:
+            for call in source_method.calls:
+                if _resolve_call_target(source_modules_by_name, source_type_index, endpoint.controller_module_name, call) is None:
+                    unresolved_call_count += 1
+                    unresolved_reasons.append(
+                        {
+                            "call": call,
+                            "reason": _classify_unresolved_call(
+                                source_modules_by_name,
+                                source_type_index,
+                                endpoint.controller_module_name,
+                                call,
+                            ),
+                        }
+                    )
+                else:
+                    resolved_call_count += 1
         reduced.append(
             ReducedJavaApiEndpointFact(
                 endpoint_key=endpoint.endpoint_key,
@@ -256,6 +364,9 @@ def reduce_java_api_endpoints(
                 method_name=endpoint.method_name,
                 read_tables=method.read_tables,
                 write_tables=method.write_tables,
+                resolved_call_count=resolved_call_count,
+                unresolved_call_count=unresolved_call_count,
+                unresolved_reasons=unresolved_reasons,
             )
         )
     return reduced

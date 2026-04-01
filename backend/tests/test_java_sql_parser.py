@@ -172,6 +172,14 @@ def test_java_symbol_parser_extracts_normalized_implemented_types():
     assert parse_implemented_types(source) == ["IReportService"]
 
 
+def test_java_symbol_parser_extracts_serviceimpl_superclass():
+    from bloodline_api.parsers.java_symbol_parser import parse_extended_type
+
+    source = read_java_source(Path("tests/fixtures/java_service_impl_bridge/UserServiceImpl.java"))
+
+    assert parse_extended_type(source) == "ServiceImpl<UserMapper, UserEntity>"
+
+
 def test_java_controller_parser_extracts_http_endpoint_facts():
     endpoints = parse_controller_endpoints(
         Path("tests/fixtures/java_api_controller/OrderSummaryController.java")

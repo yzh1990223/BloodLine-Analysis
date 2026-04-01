@@ -40,6 +40,7 @@ class JavaTypeDeclaration:
 
     kind: str
     type_name: str
+    extended_type: str | None
     implemented_types: list[str]
 
 
@@ -109,15 +110,25 @@ def parse_type_declaration(source: str) -> JavaTypeDeclaration | None:
 
     kind = match.group(1)
     type_name = match.group(2)
+    extended_type = None
+    if match.group(3):
+        extended_type = match.group(3).strip()
     implemented_types: list[str] = []
     raw_type_list = match.group(4) if kind == "class" else match.group(3)
+    if kind == "interface":
+        raw_type_list = match.group(3)
     if raw_type_list:
         for item in raw_type_list.split(","):
             normalized = _normalize_declared_type_name(item)
             if normalized and normalized not in implemented_types:
                 implemented_types.append(normalized)
 
-    return JavaTypeDeclaration(kind=kind, type_name=type_name, implemented_types=implemented_types)
+    return JavaTypeDeclaration(
+        kind=kind,
+        type_name=type_name,
+        extended_type=extended_type,
+        implemented_types=implemented_types,
+    )
 
 
 def parse_field_types(source: str, method_scopes: list[JavaMethodScope] | None = None) -> dict[str, str]:
@@ -142,3 +153,12 @@ def parse_implemented_types(source: str) -> list[str]:
     if declaration is None or declaration.kind != "class":
         return []
     return declaration.implemented_types
+
+
+def parse_extended_type(source: str) -> str | None:
+    """Extract the primary extended type reference from the top-level declaration."""
+
+    declaration = parse_type_declaration(source)
+    if declaration is None:
+        return None
+    return declaration.extended_type

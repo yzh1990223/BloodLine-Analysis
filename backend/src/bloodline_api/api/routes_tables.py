@@ -25,6 +25,7 @@ def search_tables(q: str = Query(default=""), db: Session = Depends(get_db)) -> 
                 node.object_metadata.comment if node.object_metadata is not None and node.object_metadata.comment else node.name
             ),
             "object_type": node.payload.get("object_type", "data_table"),
+            "payload": node.payload,
         }
         for node in lineage_query_service.search_tables(db, q)
     ]

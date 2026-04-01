@@ -189,6 +189,59 @@ def test_scan_pipeline_reduces_api_endpoint_through_unique_interface_impl_bindin
     assert any(item["key"] == "api:GET /api/bound-report/summary" for item in api_endpoints)
 
 
+def test_api_endpoint_lineage_reads_tables_through_service_impl_and_mapper(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_service_impl_bridge"},
+    )
+
+    assert response.status_code == 202
+
+    payload = client.get("/api/tables/search", params={"q": "/users"})
+    assert payload.status_code == 200
+    api_keys = {item["key"] for item in payload.json()["items"]}
+    assert "api:GET /users" in api_keys
+
+    lineage = client.get("/api/tables/table:dm.user_info/lineage")
+    assert lineage.status_code == 200
+    api_endpoints = lineage.json()["related_objects"]["api_endpoints"]
+    assert any(item["key"] == "api:GET /users" for item in api_endpoints)
+
+
+def test_api_endpoint_payload_includes_lineage_diagnostics(client):
+    client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_service_impl_bridge"},
+    )
+
+    payload = client.get("/api/tables/search", params={"q": "/users"})
+    assert payload.status_code == 200
+    api_item = next(item for item in payload.json()["items"] if item["key"] == "api:GET /users")
+    assert api_item["payload"]["diagnostics"] == {
+        "resolved_calls": 1,
+        "unresolved_calls": 0,
+        "unresolved_reasons": [],
+        "read_table_count": 1,
+        "write_table_count": 0,
+    }
+
+
+def test_api_endpoint_payload_reports_unresolved_reason_labels(client):
+    client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_api_unresolved_diagnostics"},
+    )
+
+    payload = client.get("/api/tables/search", params={"q": "/api/diagnostic-report/summary"})
+    assert payload.status_code == 200
+    api_item = next(item for item in payload.json()["items"] if item["key"] == "api:GET /api/diagnostic-report/summary")
+    assert api_item["payload"]["diagnostics"]["resolved_calls"] == 1
+    assert api_item["payload"]["diagnostics"]["unresolved_calls"] == 1
+    assert api_item["payload"]["diagnostics"]["unresolved_reasons"] == [
+        {"call": "auditService.audit", "reason": "unresolved_target_method"}
+    ]
+
+
 def test_scan_pipeline_reduces_api_endpoint_through_unique_interface_implementation(client):
     response = client.post(
         "/api/scan",

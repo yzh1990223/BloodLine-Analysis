@@ -763,7 +763,11 @@ class LineageQueryService:
                     )
                     continue
             reduced_java_results = reduce_java_modules(java_results)
-            reduced_api_results = reduce_java_api_endpoints(java_api_facts, reduced_java_results)
+            reduced_api_results = reduce_java_api_endpoints(
+                java_api_facts,
+                reduced_java_results,
+                java_results,
+            )
             for java_result in java_results:
                 reduced_java_result = reduced_java_results[java_result.module_name]
                 java_node = self._get_or_create_node(
@@ -822,6 +826,13 @@ class LineageQueryService:
                 api_payload["object_type"] = "api_endpoint"
                 api_payload["http_method"] = endpoint.http_method
                 api_payload["route"] = endpoint.route
+                api_payload["diagnostics"] = {
+                    "resolved_calls": endpoint.resolved_call_count,
+                    "unresolved_calls": endpoint.unresolved_call_count,
+                    "unresolved_reasons": endpoint.unresolved_reasons,
+                    "read_table_count": len(endpoint.read_tables),
+                    "write_table_count": len(endpoint.write_tables),
+                }
                 api_node.payload = api_payload
                 db.flush()
                 for table_name in endpoint.read_tables:
