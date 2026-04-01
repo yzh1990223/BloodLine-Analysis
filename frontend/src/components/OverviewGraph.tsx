@@ -5,7 +5,6 @@ import {
   buildOverviewGraph,
   focusOverviewGraph,
 } from "../graph/overviewGraph";
-import { objectTypeLabel } from "./ObjectTypeBadge";
 import { TableLineageResponse } from "../types";
 
 interface OverviewGraphProps {
@@ -17,9 +16,12 @@ export function OverviewObjectNode({ data }: NodeProps<OverviewNodeData>) {
   return (
     <div className="overview-object-card">
       <Handle type="target" position={Position.Left} className="overview-node-handle" />
-      <strong>{data.technicalName}</strong>
-      {data.technicalName !== data.label ? <small>{data.label}</small> : null}
-      <small>{objectTypeLabel(data.objectType)}</small>
+      <div className="node-bilingual-labels">
+        <strong className="node-primary-label">{data.technicalName}</strong>
+        {data.technicalName !== data.label ? (
+          <small className="node-secondary-label">{data.label}</small>
+        ) : null}
+      </div>
       <Handle type="source" position={Position.Right} className="overview-node-handle" />
     </div>
   );

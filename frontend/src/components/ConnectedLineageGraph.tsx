@@ -35,8 +35,12 @@ function DetailLineageNode({ data }: NodeProps<OverviewNodeData>) {
           style={{ top: `${((index + 1) / (targetHandles.length + 1)) * 100}%` }}
         />
       ))}
-      <strong>{data.technicalName}</strong>
-      {data.technicalName !== data.label ? <small>{data.label}</small> : null}
+      <div className="node-bilingual-labels">
+        <strong className="node-primary-label">{data.technicalName}</strong>
+        {data.technicalName !== data.label ? (
+          <small className="node-secondary-label">{data.label}</small>
+        ) : null}
+      </div>
       {sourceHandles.map((handleId, index) => (
         <Handle
           key={handleId}

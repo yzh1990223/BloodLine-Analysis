@@ -497,17 +497,6 @@ a {
   box-sizing: border-box;
 }
 
-.detail-overview-flow .detail-lineage-card strong {
-  display: block;
-  overflow: hidden;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #fff;
-}
-
 .detail-overview-flow .overview-node-handle {
   opacity: 0;
   width: 6px;
@@ -611,22 +600,58 @@ a {
 .overview-object-card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
   padding: 18px;
   text-align: center;
 }
 
-.overview-object-card strong {
+.node-bilingual-labels {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.node-primary-label,
+.node-secondary-label {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overview-object-card .node-primary-label {
   font-size: 14px;
   font-weight: 700;
   color: #12344d;
 }
 
-.overview-object-card small {
+.overview-object-card .node-secondary-label {
   margin-left: 0;
   font-size: 12px;
   font-weight: 700;
   color: #52606d;
+}
+
+.detail-overview-flow .detail-lineage-card .node-bilingual-labels {
+  max-width: 100%;
+}
+
+.detail-overview-flow .detail-lineage-card .node-primary-label {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #fff;
+}
+
+.detail-overview-flow .detail-lineage-card .node-secondary-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .overview-flow .react-flow__node:hover {
