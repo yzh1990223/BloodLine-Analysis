@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,9 @@ class ScanRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     repo_path: str | None = None
+    repo_paths: list[str] | None = None
     java_source_root: str | None = None
+    java_source_roots: list[str] | None = None
     mysql_dsn: str | None = None
     metadata_databases: list[str] | None = None
 
@@ -32,10 +34,26 @@ def _normalized_scan_inputs(request: ScanRequest | None) -> dict[str, object]:
         return {}
 
     inputs: dict[str, object] = {}
+    normalized_repo_paths = []
+    if request.repo_paths:
+        normalized_repo_paths.extend(item.strip() for item in request.repo_paths if item.strip())
     if request.repo_path and request.repo_path.strip():
-        inputs["repo_path"] = request.repo_path.strip()
+        normalized_repo_paths.append(request.repo_path.strip())
+    if normalized_repo_paths:
+        deduped_repo_paths = list(dict.fromkeys(normalized_repo_paths))
+        inputs["repo_paths"] = deduped_repo_paths
+        inputs["repo_path"] = deduped_repo_paths[0]
+
+    normalized_java_roots = []
+    if request.java_source_roots:
+        normalized_java_roots.extend(item.strip() for item in request.java_source_roots if item.strip())
     if request.java_source_root and request.java_source_root.strip():
-        inputs["java_source_root"] = request.java_source_root.strip()
+        normalized_java_roots.append(request.java_source_root.strip())
+    if normalized_java_roots:
+        deduped_java_roots = list(dict.fromkeys(normalized_java_roots))
+        inputs["java_source_roots"] = deduped_java_roots
+        inputs["java_source_root"] = deduped_java_roots[0]
+
     if request.mysql_dsn and request.mysql_dsn.strip():
         inputs["mysql_dsn"] = request.mysql_dsn.strip()
     if request.metadata_databases:
@@ -66,14 +84,19 @@ def create_scan(request: ScanRequest | None = None, db: Session = Depends(get_db
     """Run a synchronous MVP scan and return the created scan-run record."""
 
     normalized_inputs = _normalized_scan_inputs(request)
-    scan_run = lineage_query_service.scan_from_inputs(
-        db,
-        repo_path=normalized_inputs.get("repo_path"),
-        java_source_root=normalized_inputs.get("java_source_root"),
-        mysql_dsn=normalized_inputs.get("mysql_dsn"),
-        metadata_databases=normalized_inputs.get("metadata_databases"),
-        inputs=normalized_inputs,
-    )
+    try:
+        scan_run = lineage_query_service.scan_from_inputs(
+            db,
+            repo_path=normalized_inputs.get("repo_path"),
+            repo_paths=normalized_inputs.get("repo_paths"),
+            java_source_root=normalized_inputs.get("java_source_root"),
+            java_source_roots=normalized_inputs.get("java_source_roots"),
+            mysql_dsn=normalized_inputs.get("mysql_dsn"),
+            metadata_databases=normalized_inputs.get("metadata_databases"),
+            inputs=normalized_inputs,
+        )
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     return {
         "scan_run_id": scan_run.id,
         "status": scan_run.status,

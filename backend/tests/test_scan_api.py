@@ -55,6 +55,8 @@ def test_latest_scan_run_returns_saved_inputs(client):
     assert body["inputs"] == {
         "repo_path": "tests/fixtures/sample.repo.xml",
         "java_source_root": "tests/fixtures/java",
+        "repo_paths": ["tests/fixtures/sample.repo.xml"],
+        "java_source_roots": ["tests/fixtures/java"],
         "mysql_dsn": "mysql+pymysql://user:pass@localhost/dm",
         "metadata_databases": ["dm", "ods"],
     }
@@ -99,3 +101,65 @@ def test_scan_accepts_metadata_database_whitelist(client):
     assert response.json()["inputs"]["metadata_databases"] == ["dm", "ods"]
     assert len(loaded_requests) == 1
     assert loaded_requests[0].databases == ["dm", "ods"]
+
+
+def test_scan_accepts_multiple_repo_and_java_paths(client):
+    response = client.post(
+        "/api/scan",
+        json={
+            "repo_paths": [
+                str(Path("tests/fixtures/sample.repo.xml")),
+                str(Path("tests/fixtures/repository.xml")),
+            ],
+            "java_source_roots": [
+                str(Path("tests/fixtures/java")),
+                str(Path("tests/fixtures/java_api_controller")),
+            ],
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json()["inputs"]["repo_paths"] == [
+        "tests/fixtures/sample.repo.xml",
+        "tests/fixtures/repository.xml",
+    ]
+    assert response.json()["inputs"]["java_source_roots"] == [
+        "tests/fixtures/java",
+        "tests/fixtures/java_api_controller",
+    ]
+
+
+def test_scan_returns_friendly_error_for_invalid_repo_path(client):
+    response = client.post(
+        "/api/scan",
+        json={
+            "repo_paths": [
+                "tests/fixtures/sample.repo.xml",
+                "tests/fixtures/missing.repo.xml",
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "第 2 个 Repo 文件路径不存在：tests/fixtures/missing.repo.xml。请检查路径后重试。"
+    )
+
+
+def test_scan_returns_friendly_error_for_invalid_java_directory(client):
+    response = client.post(
+        "/api/scan",
+        json={
+            "java_source_roots": [
+                "tests/fixtures/java",
+                "tests/fixtures/sample.repo.xml",
+            ],
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.json()["detail"]
+        == "第 2 个 Java 源码目录不是目录：tests/fixtures/sample.repo.xml。请填写目录路径后重试。"
+    )

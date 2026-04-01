@@ -33,6 +33,50 @@ def _resolve_input_path(value: str) -> Path:
     return path if path.is_absolute() else BACKEND_ROOT / path
 
 
+def _normalized_input_values(values: list[str] | None, single_value: str | None) -> list[str]:
+    """Merge legacy single-value inputs with newer multi-value lists."""
+
+    merged: list[str] = []
+    if values:
+        merged.extend(item for item in values if item)
+    if single_value:
+        merged.append(single_value)
+
+    deduped: list[str] = []
+    for item in merged:
+        if item not in deduped:
+            deduped.append(item)
+    return deduped
+
+
+def _resolve_repo_paths(values: list[str]) -> list[Path]:
+    """Resolve and validate repo file paths with user-friendly errors."""
+
+    resolved_paths: list[Path] = []
+    for index, value in enumerate(values, start=1):
+        path = _resolve_input_path(value)
+        if not path.exists():
+            raise ValueError(f"第 {index} 个 Repo 文件路径不存在：{value}。请检查路径后重试。")
+        if not path.is_file():
+            raise ValueError(f"第 {index} 个 Repo 文件路径不是文件：{value}。请填写文件路径后重试。")
+        resolved_paths.append(path)
+    return resolved_paths
+
+
+def _resolve_java_roots(values: list[str]) -> list[Path]:
+    """Resolve and validate Java source directories with user-friendly errors."""
+
+    resolved_paths: list[Path] = []
+    for index, value in enumerate(values, start=1):
+        path = _resolve_input_path(value)
+        if not path.exists():
+            raise ValueError(f"第 {index} 个 Java 源码目录不存在：{value}。请检查路径后重试。")
+        if not path.is_dir():
+            raise ValueError(f"第 {index} 个 Java 源码目录不是目录：{value}。请填写目录路径后重试。")
+        resolved_paths.append(path)
+    return resolved_paths
+
+
 def _node_payload(
     node_type: str,
     source: str | None = None,
@@ -398,7 +442,9 @@ class LineageQueryService:
         db: Session,
         *,
         repo_path: str | None = None,
+        repo_paths: list[str] | None = None,
         java_source_root: str | None = None,
+        java_source_roots: list[str] | None = None,
         mysql_dsn: str | None = None,
         metadata_databases: list[str] | None = None,
         inputs: dict[str, Any] | None = None,
@@ -422,8 +468,8 @@ class LineageQueryService:
             object_nodes=object_nodes,
         )
 
-        if repo_path:
-            repo_result = RepoParser().parse_file(_resolve_input_path(repo_path))
+        for repo_file in _resolve_repo_paths(_normalized_input_values(repo_paths, repo_path)):
+            repo_result = RepoParser().parse_file(repo_file)
             job_nodes = {
                 job.name: self._get_or_create_node(db, "job", f"job:{job.name}", job.name)
                 for job in repo_result.jobs
@@ -530,79 +576,49 @@ class LineageQueryService:
                     )
                     fact_edges.append(("WRITES", entry_key, table_node.key))
 
-        if java_source_root:
-            java_root = _resolve_input_path(java_source_root)
-            if java_root.is_dir():
-                java_files = sorted(java_root.rglob("*.java"))
-                java_results = [JavaSqlParser().parse_file(java_file) for java_file in java_files]
-                java_api_facts = [
-                    endpoint
-                    for java_file in java_files
-                    for endpoint in parse_controller_endpoints(java_file)
-                ]
-                reduced_java_results = reduce_java_modules(java_results)
-                reduced_api_results = reduce_java_api_endpoints(java_api_facts, reduced_java_results)
-                for java_result in java_results:
-                    reduced_java_result = reduced_java_results[java_result.module_name]
-                    java_node = self._get_or_create_node(
+        java_files: list[Path] = []
+        for java_root in _resolve_java_roots(_normalized_input_values(java_source_roots, java_source_root)):
+            java_files.extend(java_root.rglob("*.java"))
+        if java_files:
+            deduped_java_files = sorted({java_file.resolve(): java_file for java_file in java_files}.values())
+            java_results = [JavaSqlParser().parse_file(java_file) for java_file in deduped_java_files]
+            java_api_facts = [
+                endpoint
+                for java_file in deduped_java_files
+                for endpoint in parse_controller_endpoints(java_file)
+            ]
+            reduced_java_results = reduce_java_modules(java_results)
+            reduced_api_results = reduce_java_api_endpoints(java_api_facts, reduced_java_results)
+            for java_result in java_results:
+                reduced_java_result = reduced_java_results[java_result.module_name]
+                java_node = self._get_or_create_node(
+                    db,
+                    "java_module",
+                    f"java_module:{java_result.module_name}",
+                    java_result.module_name,
+                )
+                for table_name in reduced_java_result.read_tables:
+                    table_node = self._resolve_object_node(
                         db,
-                        "java_module",
-                        f"java_module:{java_result.module_name}",
-                        java_result.module_name,
+                        name=table_name,
+                        object_type="data_table",
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
                     )
-                    for table_name in reduced_java_result.read_tables:
-                        table_node = self._resolve_object_node(
-                            db,
-                            name=table_name,
-                            object_type="data_table",
-                            object_nodes=object_nodes,
-                            metadata_aliases=metadata_aliases,
-                        )
-                        self._ensure_edge(db, "READS", java_node.id, table_node.id)
-                    for table_name in reduced_java_result.write_tables:
-                        table_node = self._resolve_object_node(
-                            db,
-                            name=table_name,
-                            object_type="data_table",
-                            object_nodes=object_nodes,
-                            metadata_aliases=metadata_aliases,
-                        )
-                        self._ensure_edge(db, "WRITES", java_node.id, table_node.id)
-                    # Preserve method boundaries while allowing stable call-chain reduction.
-                    for method in reduced_java_result.methods.values():
-                        method_actor = f"{java_node.key}#{method.method_name}"
-                        for table_name in method.read_tables:
-                            table_node = self._resolve_object_node(
-                                db,
-                                name=table_name,
-                                object_type="data_table",
-                                object_nodes=object_nodes,
-                                metadata_aliases=metadata_aliases,
-                            )
-                            fact_edges.append(("READS", method_actor, table_node.key))
-                        for table_name in method.write_tables:
-                            table_node = self._resolve_object_node(
-                                db,
-                                name=table_name,
-                                object_type="data_table",
-                                object_nodes=object_nodes,
-                                metadata_aliases=metadata_aliases,
-                            )
-                            fact_edges.append(("WRITES", method_actor, table_node.key))
-                for endpoint in reduced_api_results:
-                    api_node = self._get_or_create_node(
+                    self._ensure_edge(db, "READS", java_node.id, table_node.id)
+                for table_name in reduced_java_result.write_tables:
+                    table_node = self._resolve_object_node(
                         db,
-                        "api_endpoint",
-                        endpoint.endpoint_key,
-                        f"{endpoint.http_method} {endpoint.route}",
+                        name=table_name,
+                        object_type="data_table",
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
                     )
-                    api_payload = dict(api_node.payload or {})
-                    api_payload["object_type"] = "api_endpoint"
-                    api_payload["http_method"] = endpoint.http_method
-                    api_payload["route"] = endpoint.route
-                    api_node.payload = api_payload
-                    db.flush()
-                    for table_name in endpoint.read_tables:
+                    self._ensure_edge(db, "WRITES", java_node.id, table_node.id)
+                # Preserve method boundaries while allowing stable call-chain reduction.
+                for method in reduced_java_result.methods.values():
+                    method_actor = f"{java_node.key}#{method.method_name}"
+                    for table_name in method.read_tables:
                         table_node = self._resolve_object_node(
                             db,
                             name=table_name,
@@ -610,8 +626,8 @@ class LineageQueryService:
                             object_nodes=object_nodes,
                             metadata_aliases=metadata_aliases,
                         )
-                        self._ensure_edge(db, "READS", api_node.id, table_node.id)
-                    for table_name in endpoint.write_tables:
+                        fact_edges.append(("READS", method_actor, table_node.key))
+                    for table_name in method.write_tables:
                         table_node = self._resolve_object_node(
                             db,
                             name=table_name,
@@ -619,7 +635,38 @@ class LineageQueryService:
                             object_nodes=object_nodes,
                             metadata_aliases=metadata_aliases,
                         )
-                        self._ensure_edge(db, "WRITES", api_node.id, table_node.id)
+                        fact_edges.append(("WRITES", method_actor, table_node.key))
+            for endpoint in reduced_api_results:
+                api_node = self._get_or_create_node(
+                    db,
+                    "api_endpoint",
+                    endpoint.endpoint_key,
+                    f"{endpoint.http_method} {endpoint.route}",
+                )
+                api_payload = dict(api_node.payload or {})
+                api_payload["object_type"] = "api_endpoint"
+                api_payload["http_method"] = endpoint.http_method
+                api_payload["route"] = endpoint.route
+                api_node.payload = api_payload
+                db.flush()
+                for table_name in endpoint.read_tables:
+                    table_node = self._resolve_object_node(
+                        db,
+                        name=table_name,
+                        object_type="data_table",
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
+                    )
+                    self._ensure_edge(db, "READS", api_node.id, table_node.id)
+                for table_name in endpoint.write_tables:
+                    table_node = self._resolve_object_node(
+                        db,
+                        name=table_name,
+                        object_type="data_table",
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
+                    )
+                    self._ensure_edge(db, "WRITES", api_node.id, table_node.id)
 
         table_flows = build_table_flows(fact_edges)
         for source_key, target_key in table_flows:

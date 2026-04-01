@@ -33,8 +33,8 @@ test("shows latest scan status and lets the user trigger a new scan", async () =
     scan_run_id: 13,
     status: "completed",
     inputs: {
-      repo_path: "/data/demo.repo",
-      java_source_root: "/data/java",
+      repo_paths: ["/data/demo.repo", "/data/extra.repo"],
+      java_source_roots: ["/data/java", "/data/java-extra"],
     },
   });
 
@@ -45,17 +45,21 @@ test("shows latest scan status and lets the user trigger a new scan", async () =
 
   fireEvent.click(screen.getByRole("button", { name: "高级配置" }));
   fireEvent.change(screen.getByLabelText("Repo 文件路径"), {
-    target: { value: "/data/demo.repo" },
+    target: { value: "/data/demo.repo, /data/extra.repo" },
   });
   fireEvent.change(screen.getByLabelText("Java 源码目录"), {
-    target: { value: "/data/java" },
+    target: { value: "/data/java, /data/java-extra" },
+  });
+  fireEvent.change(screen.getByLabelText("元数据数据库列表"), {
+    target: { value: "dm, ods" },
   });
   fireEvent.click(screen.getByRole("button", { name: "重新扫描解析" }));
 
   await waitFor(() => {
     expect(createScan).toHaveBeenCalledWith({
-      repo_path: "/data/demo.repo",
-      java_source_root: "/data/java",
+      repo_paths: ["/data/demo.repo", "/data/extra.repo"],
+      java_source_roots: ["/data/java", "/data/java-extra"],
+      metadata_databases: ["dm", "ods"],
     });
   });
 });
@@ -69,9 +73,10 @@ test("auto-fills the latest saved scan inputs", async () => {
       finished_at: "2026-03-31T01:01:00Z",
       created_at: "2026-03-31T01:00:00Z",
       inputs: {
-        repo_path: "/data/latest.repo",
-        java_source_root: "/data/latest-java",
+        repo_paths: ["/data/latest.repo", "/data/extra.repo"],
+        java_source_roots: ["/data/latest-java", "/data/java-two"],
         mysql_dsn: "mysql+pymysql://user:pass@localhost/dm",
+        metadata_databases: ["dm", "ods", "frms"],
       },
     },
   });
@@ -83,14 +88,49 @@ test("auto-fills the latest saved scan inputs", async () => {
 
   await waitFor(() => {
     expect((screen.getByLabelText("Repo 文件路径") as HTMLInputElement).value).toBe(
-      "/data/latest.repo",
+      "/data/latest.repo, /data/extra.repo",
     );
     expect((screen.getByLabelText("Java 源码目录") as HTMLInputElement).value).toBe(
-      "/data/latest-java",
+      "/data/latest-java, /data/java-two",
     );
     expect((screen.getByLabelText("MySQL DSN（预留）") as HTMLInputElement).value).toBe(
       "mysql+pymysql://user:pass@localhost/dm",
     );
+    expect((screen.getByLabelText("元数据数据库列表") as HTMLInputElement).value).toBe(
+      "dm, ods, frms",
+    );
+  });
+});
+
+test("submits metadata databases as a trimmed list and omits blanks", async () => {
+  fetchLatestScanRun.mockResolvedValue({
+    scan_run: null,
+  });
+  createScan.mockResolvedValue({
+    scan_run_id: 16,
+    status: "completed",
+    inputs: {
+      java_source_root: "/data/latest-java",
+      metadata_databases: ["dm", "ods"],
+    },
+  });
+
+  render(<ScanControlPanel onScanCompleted={() => {}} />);
+
+  fireEvent.click(screen.getByRole("button", { name: "高级配置" }));
+  fireEvent.change(screen.getByLabelText("Java 源码目录"), {
+    target: { value: "/data/latest-java" },
+  });
+  fireEvent.change(screen.getByLabelText("元数据数据库列表"), {
+    target: { value: " dm , , ods " },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "重新扫描解析" }));
+
+  await waitFor(() => {
+    expect(createScan).toHaveBeenCalledWith({
+      java_source_roots: ["/data/latest-java"],
+      metadata_databases: ["dm", "ods"],
+    });
   });
 });
 
@@ -102,7 +142,7 @@ test("submits a scan when only one path is provided and omits empty fields", asy
     scan_run_id: 14,
     status: "completed",
     inputs: {
-      repo_path: "/data/demo.repo",
+      repo_paths: ["/data/demo.repo"],
     },
   });
 
@@ -116,7 +156,7 @@ test("submits a scan when only one path is provided and omits empty fields", asy
 
   await waitFor(() => {
     expect(createScan).toHaveBeenCalledWith({
-      repo_path: "/data/demo.repo",
+      repo_paths: ["/data/demo.repo"],
     });
   });
 });
@@ -133,7 +173,9 @@ test("keeps the scan button clickable and only blocks submission when both paths
 
   fireEvent.click(submitButton);
 
-  expect(await screen.findByText("请至少填写 Repo 文件路径或 Java 源码目录。")).toBeTruthy();
+  expect(
+    await screen.findByText("请至少填写 1 个 Repo 文件路径或 1 个 Java 源码目录，多个路径请用英文逗号分隔。"),
+  ).toBeTruthy();
   expect(screen.getByLabelText("Repo 文件路径")).toBeTruthy();
   expect(createScan).not.toHaveBeenCalled();
 });

@@ -10,6 +10,7 @@ interface ScanFormState {
   repo_path: string;
   java_source_root: string;
   mysql_dsn: string;
+  metadata_databases: string;
 }
 
 function formatStatus(status: string | null) {
@@ -34,10 +35,18 @@ function latestTime(scanRun: ScanRunSummary | null) {
 
 function toFormState(inputs?: ScanRequestPayload): ScanFormState {
   return {
-    repo_path: inputs?.repo_path ?? "",
-    java_source_root: inputs?.java_source_root ?? "",
+    repo_path: inputs?.repo_paths?.join(", ") ?? inputs?.repo_path ?? "",
+    java_source_root: inputs?.java_source_roots?.join(", ") ?? inputs?.java_source_root ?? "",
     mysql_dsn: inputs?.mysql_dsn ?? "",
+    metadata_databases: inputs?.metadata_databases?.join(", ") ?? "",
   };
+}
+
+function parseCommaSeparatedPaths(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
@@ -50,6 +59,7 @@ export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
     repo_path: "",
     java_source_root: "",
     mysql_dsn: "",
+    metadata_databases: "",
   });
 
   useEffect(() => {
@@ -80,23 +90,27 @@ export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
 
   async function handleSubmit() {
     const payload: ScanRequestPayload = {};
-    const repoPath = formState.repo_path.trim();
-    const javaSourceRoot = formState.java_source_root.trim();
+    const repoPaths = parseCommaSeparatedPaths(formState.repo_path);
+    const javaSourceRoots = parseCommaSeparatedPaths(formState.java_source_root);
     const mysqlDsn = formState.mysql_dsn.trim();
+    const metadataDatabases = parseCommaSeparatedPaths(formState.metadata_databases);
 
-    if (repoPath) {
-      payload.repo_path = repoPath;
+    if (repoPaths.length > 0) {
+      payload.repo_paths = repoPaths;
     }
-    if (javaSourceRoot) {
-      payload.java_source_root = javaSourceRoot;
+    if (javaSourceRoots.length > 0) {
+      payload.java_source_roots = javaSourceRoots;
     }
     if (mysqlDsn) {
       payload.mysql_dsn = mysqlDsn;
     }
+    if (metadataDatabases.length > 0) {
+      payload.metadata_databases = metadataDatabases;
+    }
 
-    if (!payload.repo_path && !payload.java_source_root) {
+    if (!payload.repo_paths && !payload.java_source_roots) {
       setShowAdvanced(true);
-      setError("请至少填写 Repo 文件路径或 Java 源码目录。");
+      setError("请至少填写 1 个 Repo 文件路径或 1 个 Java 源码目录，多个路径请用英文逗号分隔。");
       return;
     }
 
@@ -167,8 +181,9 @@ export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
               onChange={(event) =>
                 setFormState((current) => ({ ...current, repo_path: event.target.value }))
               }
-              placeholder="/data/bloodline/merged.repo"
+              placeholder="/data/bloodline/merged.repo, /data/bloodline/extra.repo"
             />
+            <span className="field-hint">支持填写多个 Repo 文件路径，多个路径请用英文逗号分隔。</span>
           </label>
           <label>
             Java 源码目录
@@ -181,8 +196,9 @@ export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
                   java_source_root: event.target.value,
                 }))
               }
-              placeholder="/data/bloodline/java-src"
+              placeholder="/data/bloodline/java-src, /data/bloodline/java-extra"
             />
+            <span className="field-hint">支持填写多个 Java 源码目录，多个目录请用英文逗号分隔。</span>
           </label>
           <label>
             MySQL DSN（预留）
@@ -193,6 +209,20 @@ export function ScanControlPanel({ onScanCompleted }: ScanControlPanelProps) {
                 setFormState((current) => ({ ...current, mysql_dsn: event.target.value }))
               }
               placeholder="mysql+pymysql://user:password@host:3306/db"
+            />
+          </label>
+          <label>
+            元数据数据库列表
+            <input
+              aria-label="元数据数据库列表"
+              value={formState.metadata_databases}
+              onChange={(event) =>
+                setFormState((current) => ({
+                  ...current,
+                  metadata_databases: event.target.value,
+                }))
+              }
+              placeholder="winddf, frms, dp"
             />
           </label>
         </div>

@@ -16,7 +16,16 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   // Centralize fetch error handling so pages only deal with domain data.
   const response = await fetch(`${API_BASE}${path}`, init);
   if (!response.ok) {
-    throw new Error(`Request failed: ${response.status}`);
+    let message = `Request failed: ${response.status}`;
+    try {
+      const errorBody = (await response.json()) as { detail?: string };
+      if (errorBody?.detail) {
+        message = errorBody.detail;
+      }
+    } catch {
+      // Fall back to the generic status-based message when no JSON body is available.
+    }
+    throw new Error(message);
   }
   return (await response.json()) as T;
 }

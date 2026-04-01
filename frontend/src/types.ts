@@ -97,7 +97,9 @@ export interface LatestScanRunResponse {
 
 export interface ScanRequestPayload {
   repo_path?: string;
+  repo_paths?: string[];
   java_source_root?: string;
+  java_source_roots?: string[];
   mysql_dsn?: string;
   metadata_databases?: string[];
 }
