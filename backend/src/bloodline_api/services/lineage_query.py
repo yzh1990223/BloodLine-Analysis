@@ -132,6 +132,7 @@ def _serialize_object(node: Node) -> dict[str, Any]:
         "name": node.name,
         "display_name": display_name,
         "object_type": node.payload.get("object_type", DEFAULT_OBJECT_TYPE),
+        "payload": node.payload,
     }
     if metadata is not None:
         payload["metadata"] = {
@@ -182,6 +183,16 @@ def _scan_failure_payload(scan_failure: ScanFailure) -> dict[str, Any]:
 
 class LineageQueryService:
     """Orchestrate scan persistence and graph-shaped query responses."""
+
+    def _empty_related_objects(self) -> dict[str, list[dict[str, Any]]]:
+        """Return a stable empty related-objects payload."""
+
+        return {
+            "jobs": [],
+            "java_modules": [],
+            "api_endpoints": [],
+            "transformations": [],
+        }
 
     def reset_graph_state(self, db: Session) -> None:
         """Clear persisted graph entities before a full rescan rebuild."""
@@ -1078,9 +1089,26 @@ class LineageQueryService:
     def get_table_lineage(self, db: Session, table_key: str) -> dict[str, Any] | None:
         """Return one table with its direct upstream/downstream neighbors."""
 
-        table = db.scalar(select(Node).where(Node.type.in_(("table", "data_object")), Node.key == table_key))
+        table = db.scalar(
+            select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint")), Node.key == table_key)
+        )
         if table is None:
             return None
+
+        if table.type == "api_endpoint":
+            touched_table_stmt = (
+                select(Node)
+                .join(Edge, Edge.dst_node_id == Node.id)
+                .where(Edge.src_node_id == table.id, Edge.type.in_(("READS", "WRITES")))
+                .order_by(Node.name.asc(), Node.id.asc())
+            )
+            touched_tables = list(db.scalars(touched_table_stmt).all())
+            return {
+                "table": _serialize_object(table),
+                "upstream_tables": [],
+                "downstream_tables": [_serialize_object(node) for node in touched_tables],
+                "related_objects": self._empty_related_objects(),
+            }
 
         upstream_stmt = (
             select(Node)
@@ -1119,9 +1147,18 @@ class LineageQueryService:
     def get_connected_table_lineage(self, db: Session, table_key: str) -> dict[str, Any]:
         """Return the detail-page directional lineage subgraph in one backend round-trip."""
 
-        table = db.scalar(select(Node).where(Node.type.in_(("table", "data_object")), Node.key == table_key))
+        table = db.scalar(
+            select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint")), Node.key == table_key)
+        )
         if table is None:
             return {"table_lineage": None, "items": []}
+
+        if table.type == "api_endpoint":
+            table_lineage = self.get_table_lineage(db, table.key)
+            return {
+                "table_lineage": table_lineage,
+                "items": [] if table_lineage is None else [table_lineage],
+            }
 
         upstream_ids = self._collect_directional_table_ids(db, table.id, direction="upstream")
         downstream_ids = self._collect_directional_table_ids(db, table.id, direction="downstream")

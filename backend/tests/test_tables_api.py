@@ -242,6 +242,28 @@ def test_api_endpoint_payload_reports_unresolved_reason_labels(client):
     ]
 
 
+def test_api_endpoint_detail_exposes_diagnostics_and_touched_tables(client):
+    client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_service_impl_bridge"},
+    )
+
+    response = client.get("/api/tables/api%3AGET%20%2Fusers/connected-lineage")
+
+    assert response.status_code == 200
+    payload = response.json()["table_lineage"]
+    assert payload["table"]["key"] == "api:GET /users"
+    assert payload["table"]["object_type"] == "api_endpoint"
+    assert payload["table"]["payload"]["diagnostics"] == {
+        "resolved_calls": 1,
+        "unresolved_calls": 0,
+        "unresolved_reasons": [],
+        "read_table_count": 1,
+        "write_table_count": 0,
+    }
+    assert [item["key"] for item in payload["downstream_tables"]] == ["table:dm.user_info"]
+
+
 def test_scan_pipeline_reduces_api_endpoint_through_unique_interface_implementation(client):
     response = client.post(
         "/api/scan",
@@ -993,59 +1015,58 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
     assert response.status_code == 200
     payload = response.json()
     assert payload["summary"] == {"group_count": 2, "table_count": 5, "edge_count": 6}
-    assert payload["items"] == [
+    assert payload["items"][0]["group_key"] == "cycle_group:1"
+    assert payload["items"][0]["table_count"] == 3
+    assert payload["items"][0]["edge_count"] == 4
+    assert payload["items"][0]["tables"] == [
         {
-            "group_key": "cycle_group:1",
-            "table_count": 3,
-            "edge_count": 4,
-            "tables": [
-                {
-                    "id": triangle_a.id,
-                    "key": "table:dm.triangle_a",
-                    "name": "dm.triangle_a",
-                    "display_name": "dm.triangle_a",
-                    "object_type": "data_table",
-                    "cycle_edge_count": 3,
-                },
-                {
-                    "id": triangle_c.id,
-                    "key": "table:dm.triangle_c",
-                    "name": "dm.triangle_c",
-                    "display_name": "dm.triangle_c",
-                    "object_type": "data_table",
-                    "cycle_edge_count": 3,
-                },
-                {
-                    "id": triangle_b.id,
-                    "key": "table:dm.triangle_b",
-                    "name": "dm.triangle_b",
-                    "display_name": "dm.triangle_b",
-                    "object_type": "data_table",
-                    "cycle_edge_count": 2,
-                },
-            ],
+            "id": triangle_a.id,
+            "key": "table:dm.triangle_a",
+            "name": "dm.triangle_a",
+            "display_name": "dm.triangle_a",
+            "object_type": "data_table",
+            "payload": {"object_type": "data_table"},
+            "cycle_edge_count": 3,
         },
         {
-            "group_key": "cycle_group:2",
-            "table_count": 2,
-            "edge_count": 2,
-            "tables": [
-                {
-                    "id": loop_left.id,
-                    "key": "table:dm.loop_left",
-                    "name": "dm.loop_left",
-                    "display_name": "dm.loop_left",
-                    "object_type": "data_table",
-                    "cycle_edge_count": 2,
-                },
-                {
-                    "id": loop_right.id,
-                    "key": "table:dm.loop_right",
-                    "name": "dm.loop_right",
-                    "display_name": "dm.loop_right",
-                    "object_type": "data_table",
-                    "cycle_edge_count": 2,
-                },
-            ],
+            "id": triangle_c.id,
+            "key": "table:dm.triangle_c",
+            "name": "dm.triangle_c",
+            "display_name": "dm.triangle_c",
+            "object_type": "data_table",
+            "payload": {"object_type": "data_table"},
+            "cycle_edge_count": 3,
+        },
+        {
+            "id": triangle_b.id,
+            "key": "table:dm.triangle_b",
+            "name": "dm.triangle_b",
+            "display_name": "dm.triangle_b",
+            "object_type": "data_table",
+            "payload": {"object_type": "data_table"},
+            "cycle_edge_count": 2,
+        },
+    ]
+    assert payload["items"][1]["group_key"] == "cycle_group:2"
+    assert payload["items"][1]["table_count"] == 2
+    assert payload["items"][1]["edge_count"] == 2
+    assert payload["items"][1]["tables"] == [
+        {
+            "id": loop_left.id,
+            "key": "table:dm.loop_left",
+            "name": "dm.loop_left",
+            "display_name": "dm.loop_left",
+            "object_type": "data_table",
+            "payload": {"object_type": "data_table"},
+            "cycle_edge_count": 2,
+        },
+        {
+            "id": loop_right.id,
+            "key": "table:dm.loop_right",
+            "name": "dm.loop_right",
+            "display_name": "dm.loop_right",
+            "object_type": "data_table",
+            "payload": {"object_type": "data_table"},
+            "cycle_edge_count": 2,
         },
     ]

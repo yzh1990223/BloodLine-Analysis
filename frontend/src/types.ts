@@ -6,6 +6,23 @@ export interface TableSummary {
   display_name?: string;
   object_type?: string;
   metadata?: ObjectMetadataSummary;
+  payload?: ObjectPayload;
+}
+
+export interface ObjectPayload {
+  object_type?: string;
+  http_method?: string;
+  route?: string;
+  diagnostics?: ApiEndpointDiagnostics;
+  [key: string]: unknown;
+}
+
+export interface ApiEndpointDiagnostics {
+  resolved_calls: number;
+  unresolved_calls: number;
+  unresolved_reasons: Array<{ call: string; reason: string }>;
+  read_table_count: number;
+  write_table_count: number;
 }
 
 export interface ObjectMetadataSummary {

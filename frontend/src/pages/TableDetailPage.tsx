@@ -59,6 +59,7 @@ export function TableDetailPage() {
 
   const tableName = lineage?.table?.display_name ?? lineage?.table?.name ?? decodedTableKey;
   const technicalTableName = lineage?.table?.name ?? decodedTableKey;
+  const diagnostics = lineage?.table?.payload?.diagnostics;
 
   return (
     <main className="page">
@@ -92,6 +93,33 @@ export function TableDetailPage() {
                 ) : null}
               </>
             ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {lineage?.table?.object_type === "api_endpoint" && diagnostics ? (
+        <section className="panel">
+          <h2>API 诊断</h2>
+          <div className="metadata-summary">
+            <p>已解析调用：{diagnostics.resolved_calls}</p>
+            <p>未解析调用：{diagnostics.unresolved_calls}</p>
+            <p>读表数：{diagnostics.read_table_count}</p>
+            <p>写表数：{diagnostics.write_table_count}</p>
+            {diagnostics.unresolved_reasons.length > 0 ? (
+              <>
+                <p>未解析原因：</p>
+                <ul className="failure-item-list">
+                  {diagnostics.unresolved_reasons.map((item) => (
+                    <li key={`${item.call}:${item.reason}`} className="failure-item">
+                      <p className="failure-item-type">{item.call}</p>
+                      <p className="failure-item-message">{item.reason}</p>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p>未解析原因：暂无</p>
+            )}
           </div>
         </section>
       ) : null}
