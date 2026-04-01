@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { OverviewGraph, OverviewObjectNode } from "../components/OverviewGraph";
 
@@ -47,7 +47,8 @@ test("renders source and target handles for custom overview nodes", () => {
       id="table:ods.orders"
       data={{
         key: "table:ods.orders",
-        label: "ods.orders",
+        label: "订单表",
+        technicalName: "ods.orders",
         role: "source",
         objectType: "data_table",
       }}
@@ -64,4 +65,6 @@ test("renders source and target handles for custom overview nodes", () => {
   expect(handleProps).toHaveBeenCalledTimes(2);
   expect(handleProps.mock.calls[0]?.[0]?.type).toBe("target");
   expect(handleProps.mock.calls[1]?.[0]?.type).toBe("source");
+  const labels = screen.getAllByText(/orders|订单表/).map((node) => node.textContent);
+  expect(labels).toEqual(["ods.orders", "订单表"]);
 });

@@ -24,12 +24,30 @@ beforeEach(() => {
 test("table detail page renders the end-to-end lineage chain graph", async () => {
   fetchConnectedLineage.mockResolvedValue({
     table_lineage: {
-      table: { id: 2, key: "table:dm.user_order_summary", name: "dm.user_order_summary", object_type: "data_table" },
+      table: {
+        id: 2,
+        key: "table:dm.user_order_summary",
+        name: "dm.user_order_summary",
+        display_name: "用户订单汇总表",
+        object_type: "data_table",
+      },
       upstream_tables: [
-        { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
+        {
+          id: 1,
+          key: "source_table:legacy_orders",
+          name: "legacy_orders",
+          display_name: "历史订单源表",
+          object_type: "source_table",
+        },
       ],
       downstream_tables: [
-        { id: 3, key: "table:app.order_dashboard", name: "app.order_dashboard", object_type: "data_table" },
+        {
+          id: 3,
+          key: "table:app.order_dashboard",
+          name: "app.order_dashboard",
+          display_name: "订单看板表",
+          object_type: "data_table",
+        },
         { id: 30, key: "api:GET /api/orders/{id}", name: "GET /api/orders/{id}", object_type: "api_endpoint" },
       ],
       related_objects: {
@@ -58,20 +76,50 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
     },
     items: [
       {
-        table: { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
+        table: {
+          id: 1,
+          key: "source_table:legacy_orders",
+          name: "legacy_orders",
+          display_name: "历史订单源表",
+          object_type: "source_table",
+        },
         upstream_tables: [],
         downstream_tables: [
-          { id: 2, key: "table:dm.user_order_summary", name: "dm.user_order_summary", object_type: "data_table" },
+          {
+            id: 2,
+            key: "table:dm.user_order_summary",
+            name: "dm.user_order_summary",
+            display_name: "用户订单汇总表",
+            object_type: "data_table",
+          },
         ],
         related_objects: { jobs: [], java_modules: [], api_endpoints: [], transformations: [] },
       },
       {
-        table: { id: 2, key: "table:dm.user_order_summary", name: "dm.user_order_summary", object_type: "data_table" },
+        table: {
+          id: 2,
+          key: "table:dm.user_order_summary",
+          name: "dm.user_order_summary",
+          display_name: "用户订单汇总表",
+          object_type: "data_table",
+        },
         upstream_tables: [
-          { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
+          {
+            id: 1,
+            key: "source_table:legacy_orders",
+            name: "legacy_orders",
+            display_name: "历史订单源表",
+            object_type: "source_table",
+          },
         ],
         downstream_tables: [
-          { id: 3, key: "table:app.order_dashboard", name: "app.order_dashboard", object_type: "data_table" },
+          {
+            id: 3,
+            key: "table:app.order_dashboard",
+            name: "app.order_dashboard",
+            display_name: "订单看板表",
+            object_type: "data_table",
+          },
           { id: 30, key: "api:GET /api/orders/{id}", name: "GET /api/orders/{id}", object_type: "api_endpoint" },
         ],
         related_objects: {
@@ -99,9 +147,21 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
         },
       },
       {
-        table: { id: 3, key: "table:app.order_dashboard", name: "app.order_dashboard", object_type: "data_table" },
+        table: {
+          id: 3,
+          key: "table:app.order_dashboard",
+          name: "app.order_dashboard",
+          display_name: "订单看板表",
+          object_type: "data_table",
+        },
         upstream_tables: [
-          { id: 2, key: "table:dm.user_order_summary", name: "dm.user_order_summary", object_type: "data_table" },
+          {
+            id: 2,
+            key: "table:dm.user_order_summary",
+            name: "dm.user_order_summary",
+            display_name: "用户订单汇总表",
+            object_type: "data_table",
+          },
         ],
         downstream_tables: [],
         related_objects: { jobs: [], java_modules: [], api_endpoints: [], transformations: [] },
@@ -123,7 +183,9 @@ test("table detail page renders the end-to-end lineage chain graph", async () =>
   });
 
   expect(screen.getAllByText("legacy_orders").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("历史订单源表").length).toBeGreaterThan(0);
   expect(screen.getAllByText("app.order_dashboard").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("订单看板表").length).toBeGreaterThan(0);
   expect(screen.getAllByText("GET /api/orders/{id}").length).toBeGreaterThan(0);
   expect(screen.queryByText("dm.legacy_side_output")).toBeNull();
   expect(screen.queryByText("ods.dashboard_source")).toBeNull();

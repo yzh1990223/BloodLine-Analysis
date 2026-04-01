@@ -22,7 +22,7 @@ function DetailLineageNode({ data }: NodeProps<OverviewNodeData>) {
   return (
     <div
       className="detail-lineage-card"
-      title={data.label}
+      title={data.technicalName}
       style={data.nodeHeight ? { minHeight: `${data.nodeHeight}px` } : undefined}
     >
       {targetHandles.map((handleId, index) => (
@@ -35,8 +35,8 @@ function DetailLineageNode({ data }: NodeProps<OverviewNodeData>) {
           style={{ top: `${((index + 1) / (targetHandles.length + 1)) * 100}%` }}
         />
       ))}
-      <strong>{data.label}</strong>
-      {data.technicalName !== data.label ? <small>{data.technicalName}</small> : null}
+      <strong>{data.technicalName}</strong>
+      {data.technicalName !== data.label ? <small>{data.label}</small> : null}
       {sourceHandles.map((handleId, index) => (
         <Handle
           key={handleId}
