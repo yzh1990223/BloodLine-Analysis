@@ -2,6 +2,7 @@ from pathlib import Path
 
 from bloodline_api.connectors.java_source_reader import read_java_source
 from bloodline_api.parsers.java_symbol_parser import parse_field_types
+from bloodline_api.parsers.java_symbol_parser import parse_implemented_types
 from bloodline_api.parsers.java_controller_parser import parse_controller_endpoints
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.sql_table_extractor import extract_tables
@@ -90,6 +91,15 @@ def test_java_parser_extracts_tables_from_mybatis_annotations():
     assert result.methods["saveSummary"].statement_ids == ["sql_1"]
 
 
+def test_java_parser_extracts_tables_from_value_style_mybatis_annotations():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_annotation_value_model/ValueAnnotatedMapper.java"))
+
+    assert result.read_tables == ["ods.orders"]
+    assert result.write_tables == []
+    assert result.methods["loadOrders"].statement_ids == ["sql_0"]
+
+
 def test_java_parser_extracts_static_tables_from_xml_mapper():
     parser = JavaSqlParser()
     result = parser.parse_file(Path("tests/fixtures/java_xml_mapper/OrderMapper.java"))
@@ -98,6 +108,15 @@ def test_java_parser_extracts_static_tables_from_xml_mapper():
     assert result.write_tables == ["dm.user_order_summary"]
     assert result.methods["loadOrders"].statement_ids == ["sql_0"]
     assert result.methods["saveSummary"].statement_ids == ["sql_1"]
+
+
+def test_java_parser_extracts_tables_from_resources_mapper_layout():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_mapper_resources/OrderMapper.java"))
+
+    assert result.read_tables == ["ods.orders"]
+    assert result.write_tables == []
+    assert result.methods["loadOrders"].statement_ids == ["sql_0"]
 
 
 def test_java_parser_skips_unstable_dynamic_xml_mapper_sql():
@@ -114,6 +133,43 @@ def test_java_symbol_parser_extracts_controller_field_types():
     source = read_java_source(Path("tests/fixtures/java_api_interface_controller/ReportController.java"))
 
     assert parse_field_types(source) == {"reportService": "IReportService"}
+
+
+def test_java_symbol_parser_preserves_generic_controller_field_types():
+    source = read_java_source(
+        Path("tests/fixtures/java_api_generic_interface_controller/GenericReportController.java")
+    )
+
+    assert parse_field_types(source) == {"reportService": "IReportService<ReportRow>"}
+
+
+def test_java_symbol_parser_extracts_implemented_generic_interfaces():
+    source = read_java_source(
+        Path("tests/fixtures/java_api_generic_interface_controller/ReportServiceImpl.java")
+    )
+
+    assert parse_implemented_types(source) == ["IReportService"]
+
+
+def test_java_lineage_reducer_strips_generic_qualifiers_from_declared_types():
+    from bloodline_api.parsers.java_lineage_reducer import _candidate_module_names_from_type
+
+    assert _candidate_module_names_from_type("com.demo.IReportService<com.demo.ReportRow>") == [
+        "ReportServiceImpl",
+        "ReportService",
+        "IReportServiceImpl",
+        "IReportService",
+    ]
+
+
+def test_java_symbol_parser_extracts_normalized_implemented_types():
+    from bloodline_api.parsers.java_symbol_parser import parse_implemented_types
+
+    source = read_java_source(
+        Path("tests/fixtures/java_api_unique_impl_binding/DailyReportAdapter.java")
+    )
+
+    assert parse_implemented_types(source) == ["IReportService"]
 
 
 def test_java_controller_parser_extracts_http_endpoint_facts():

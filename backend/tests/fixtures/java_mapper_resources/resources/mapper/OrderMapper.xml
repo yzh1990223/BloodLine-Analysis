@@ -1,0 +1,5 @@
+<mapper namespace="OrderMapper">
+  <select id="loadOrders">
+    select * from ods.orders
+  </select>
+</mapper>

@@ -52,8 +52,12 @@ def _normalize_xml_sql(sql_fragment: str) -> str:
 def extract_xml_method_sql(java_path: Path) -> list[AnnotatedMethodSql]:
     """Extract static SQL from a sibling MyBatis XML mapper when present."""
 
-    xml_path = java_path.with_suffix(".xml")
-    if not xml_path.exists():
+    candidate_paths = [java_path.with_suffix(".xml")]
+    mapper_resources_path = java_path.parent / "resources" / "mapper" / f"{java_path.stem}.xml"
+    candidate_paths.append(mapper_resources_path)
+
+    xml_path = next((path for path in candidate_paths if path.exists()), None)
+    if xml_path is None:
         return []
 
     source = read_java_source(xml_path)

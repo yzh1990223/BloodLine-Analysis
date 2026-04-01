@@ -24,7 +24,6 @@ FIELD_DECL_PATTERN = re.compile(
     r"((?:@\w+(?:\([^)]*\))?\s*)*)(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?([\w<>\[\]\.]+)\s+(\w+)\s*(?:=[^;]*)?;",
     re.MULTILINE,
 )
-
 @dataclass(slots=True)
 class JavaMethodScope:
     """One parsed Java method body with stable minimal facts."""
@@ -33,6 +32,28 @@ class JavaMethodScope:
     body: str
     start_offset: int
     end_offset: int
+
+
+@dataclass(slots=True)
+class JavaTypeDeclaration:
+    """Minimal top-level Java type declaration metadata."""
+
+    kind: str
+    type_name: str
+    implemented_types: list[str]
+
+
+TYPE_DECL_PATTERN = re.compile(
+    r"(?:public|private|protected)?\s*"
+    r"(?:abstract\s+)?"
+    r"(?:final\s+)?"
+    r"(class|interface)\s+"
+    r"(\w+)"
+    r"(?:\s+extends\s+([^{]+?))?"
+    r"(?:\s+implements\s+([^{]+?))?"
+    r"\s*\{",
+    re.MULTILINE,
+)
 
 
 def parse_method_scopes(source: str) -> list[JavaMethodScope]:
@@ -71,6 +92,34 @@ def parse_method_scopes(source: str) -> list[JavaMethodScope]:
     return scopes
 
 
+def _normalize_declared_type_name(type_ref: str) -> str:
+    """Normalize one declared Java type reference to its simple outer type name."""
+
+    normalized = re.sub(r"<.*>$", "", type_ref.strip())
+    normalized = re.sub(r"\[\]$", "", normalized)
+    return normalized.split(".")[-1]
+
+
+def parse_type_declaration(source: str) -> JavaTypeDeclaration | None:
+    """Extract one top-level class/interface declaration with implemented types."""
+
+    match = TYPE_DECL_PATTERN.search(source)
+    if match is None:
+        return None
+
+    kind = match.group(1)
+    type_name = match.group(2)
+    implemented_types: list[str] = []
+    raw_type_list = match.group(4) if kind == "class" else match.group(3)
+    if raw_type_list:
+        for item in raw_type_list.split(","):
+            normalized = _normalize_declared_type_name(item)
+            if normalized and normalized not in implemented_types:
+                implemented_types.append(normalized)
+
+    return JavaTypeDeclaration(kind=kind, type_name=type_name, implemented_types=implemented_types)
+
+
 def parse_field_types(source: str, method_scopes: list[JavaMethodScope] | None = None) -> dict[str, str]:
     """Extract top-level field declaration types keyed by receiver variable name."""
 
@@ -84,3 +133,12 @@ def parse_field_types(source: str, method_scopes: list[JavaMethodScope] | None =
         field_types[match.group(3)] = match.group(2)
 
     return field_types
+
+
+def parse_implemented_types(source: str) -> list[str]:
+    """Extract implemented interface names from the primary class declaration."""
+
+    declaration = parse_type_declaration(source)
+    if declaration is None or declaration.kind != "class":
+        return []
+    return declaration.implemented_types

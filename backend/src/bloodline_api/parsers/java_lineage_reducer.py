@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from bloodline_api.parsers.java_controller_parser import JavaApiEndpointFact
 from bloodline_api.parsers.java_sql_parser import JavaMethodFact
@@ -42,6 +43,13 @@ class ReducedJavaApiEndpointFact:
     write_tables: list[str]
 
 
+@dataclass(slots=True)
+class JavaTypeIndex:
+    """Minimal type index used to resolve interface-backed receivers."""
+
+    interface_to_impls: dict[str, list[str]]
+
+
 def _receiver_to_module_name(receiver: str) -> str:
     """Map a lower-camel bean receiver like orderRepository to OrderRepository."""
 
@@ -50,10 +58,19 @@ def _receiver_to_module_name(receiver: str) -> str:
     return receiver[0].upper() + receiver[1:]
 
 
+def _normalize_type_name(type_name: str) -> str:
+    """Normalize declared Java type names for stable matching."""
+
+    type_name = re.sub(r"<.*>$", "", type_name)
+    simple_name = type_name.split(".")[-1]
+    simple_name = re.sub(r"\[\]$", "", simple_name)
+    return simple_name
+
+
 def _candidate_module_names_from_type(declared_type: str) -> list[str]:
     """Build likely implementation module names from a declared field type."""
 
-    simple_name = declared_type.split(".")[-1]
+    simple_name = _normalize_type_name(declared_type)
     candidates: list[str] = []
 
     def add(name: str) -> None:
@@ -70,8 +87,22 @@ def _candidate_module_names_from_type(declared_type: str) -> list[str]:
     return candidates
 
 
+def _build_type_index(results: list[JavaModuleParseResult]) -> JavaTypeIndex:
+    """Build a unique interface-to-implementation lookup from parsed modules."""
+
+    interface_to_impls: dict[str, list[str]] = {}
+    for result in results:
+        for implemented_type in result.implemented_types:
+            normalized_type = _normalize_type_name(implemented_type)
+            if not normalized_type:
+                continue
+            interface_to_impls.setdefault(normalized_type, []).append(result.module_name)
+    return JavaTypeIndex(interface_to_impls=interface_to_impls)
+
+
 def _resolve_call_target(
     modules_by_name: dict[str, JavaModuleParseResult],
+    type_index: JavaTypeIndex,
     current_module_name: str,
     call: str,
 ) -> tuple[str, str] | None:
@@ -89,6 +120,10 @@ def _resolve_call_target(
 
     candidate_module_names: list[str] = []
     if declared_type:
+        normalized_type = _normalize_type_name(declared_type)
+        impl_candidates = type_index.interface_to_impls.get(normalized_type, [])
+        if len(impl_candidates) == 1:
+            candidate_module_names.extend(impl_candidates)
         candidate_module_names.extend(_candidate_module_names_from_type(declared_type))
     candidate_module_names.append(_receiver_to_module_name(receiver))
 
@@ -98,9 +133,12 @@ def _resolve_call_target(
             continue
         return target_module_name, callee
     return None
+
+
 def _reduce_method_tables(
     modules_by_name: dict[str, JavaModuleParseResult],
     statements_by_module: dict[str, dict[str, JavaSqlStatement]],
+    type_index: JavaTypeIndex,
     module_name: str,
     method_name: str,
     cache: dict[tuple[str, str], tuple[set[str], set[str]]],
@@ -132,12 +170,13 @@ def _reduce_method_tables(
         writes.update(statement.write_tables)
 
     for call in method.calls:
-        target = _resolve_call_target(modules_by_name, module_name, call)
+        target = _resolve_call_target(modules_by_name, type_index, module_name, call)
         if target is None:
             continue
         target_reads, target_writes = _reduce_method_tables(
             modules_by_name,
             statements_by_module,
+            type_index,
             target[0],
             target[1],
             cache,
@@ -159,6 +198,7 @@ def reduce_java_modules(results: list[JavaModuleParseResult]) -> dict[str, Reduc
         result.module_name: {statement.statement_id: statement for statement in result.statements}
         for result in results
     }
+    type_index = _build_type_index(results)
     cache: dict[tuple[str, str], tuple[set[str], set[str]]] = {}
     reduced: dict[str, ReducedJavaModuleFact] = {}
 
@@ -170,6 +210,7 @@ def reduce_java_modules(results: list[JavaModuleParseResult]) -> dict[str, Reduc
             reads, writes = _reduce_method_tables(
                 modules_by_name,
                 statements_by_module,
+                type_index,
                 result.module_name,
                 method_name,
                 cache,

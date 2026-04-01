@@ -132,6 +132,82 @@ def test_jobs_endpoint_returns_scanned_jobs(client):
     assert any(item["name"] == "daily_summary_job" for item in response.json()["items"])
 
 
+def test_scan_pipeline_reduces_api_endpoint_through_interface_service_chain(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_api_interface_controller"},
+    )
+
+    assert response.status_code == 202
+
+    search_response = client.get("/api/tables/search", params={"q": "/api/report/summary"})
+    assert search_response.status_code == 200
+    search_items = search_response.json()["items"]
+    assert any(item["key"] == "api:GET /api/report/summary" for item in search_items)
+
+    lineage = client.get("/api/tables/table:dm.user_order_summary/lineage")
+    assert lineage.status_code == 200
+    api_endpoints = lineage.json()["related_objects"]["api_endpoints"]
+    assert any(item["key"] == "api:GET /api/report/summary" for item in api_endpoints)
+
+
+def test_scan_pipeline_reduces_api_endpoint_through_generic_interface_type(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_api_generic_interface_controller"},
+    )
+
+    assert response.status_code == 202
+
+    search_response = client.get("/api/tables/search", params={"q": "/api/generic-report/summary"})
+    assert search_response.status_code == 200
+    search_items = search_response.json()["items"]
+    assert any(item["key"] == "api:GET /api/generic-report/summary" for item in search_items)
+
+    lineage = client.get("/api/tables/table:dm.user_order_summary/lineage")
+    assert lineage.status_code == 200
+    api_endpoints = lineage.json()["related_objects"]["api_endpoints"]
+    assert any(item["key"] == "api:GET /api/generic-report/summary" for item in api_endpoints)
+
+
+def test_scan_pipeline_reduces_api_endpoint_through_unique_interface_impl_binding(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_api_unique_impl_binding"},
+    )
+
+    assert response.status_code == 202
+
+    search_response = client.get("/api/tables/search", params={"q": "/api/bound-report/summary"})
+    assert search_response.status_code == 200
+    search_items = search_response.json()["items"]
+    assert any(item["key"] == "api:GET /api/bound-report/summary" for item in search_items)
+
+    lineage = client.get("/api/tables/table:dm.user_order_summary/lineage")
+    assert lineage.status_code == 200
+    api_endpoints = lineage.json()["related_objects"]["api_endpoints"]
+    assert any(item["key"] == "api:GET /api/bound-report/summary" for item in api_endpoints)
+
+
+def test_scan_pipeline_reduces_api_endpoint_through_unique_interface_implementation(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_api_unique_impl_controller"},
+    )
+
+    assert response.status_code == 202
+
+    search_response = client.get("/api/tables/search", params={"q": "/api/unique-report/summary"})
+    assert search_response.status_code == 200
+    search_items = search_response.json()["items"]
+    assert any(item["key"] == "api:GET /api/unique-report/summary" for item in search_items)
+
+    lineage = client.get("/api/tables/table:dm.user_order_summary/lineage")
+    assert lineage.status_code == 200
+    api_endpoints = lineage.json()["related_objects"]["api_endpoints"]
+    assert any(item["key"] == "api:GET /api/unique-report/summary" for item in api_endpoints)
+
+
 def test_scan_replaces_previous_graph_state(client, tmp_path):
     client.post(
         "/api/scan",

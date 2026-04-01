@@ -11,6 +11,7 @@ from bloodline_api.parsers.java_call_graph import build_method_call_map
 from bloodline_api.parsers.java_mapper_parser import extract_annotated_method_sql
 from bloodline_api.parsers.java_mapper_parser import extract_xml_method_sql
 from bloodline_api.parsers.java_symbol_parser import parse_field_types
+from bloodline_api.parsers.java_symbol_parser import parse_implemented_types
 from bloodline_api.parsers.java_symbol_parser import parse_method_scopes
 from bloodline_api.parsers.sql_table_extractor import extract_tables
 
@@ -30,6 +31,7 @@ class JavaModuleParseResult:
     statements: list["JavaSqlStatement"]
     methods: dict[str, "JavaMethodFact"]
     receiver_types: dict[str, str]
+    implemented_types: list[str]
 
 
 @dataclass(slots=True)
@@ -62,6 +64,7 @@ class JavaSqlParser:
         statements: list[JavaSqlStatement] = []
         method_scopes = parse_method_scopes(source)
         receiver_types = parse_field_types(source, method_scopes)
+        implemented_types = parse_implemented_types(source)
         method_call_map = build_method_call_map(method_scopes)
         methods = {
             scope.method_name: JavaMethodFact(
@@ -123,4 +126,5 @@ class JavaSqlParser:
             statements=statements,
             methods=methods,
             receiver_types=receiver_types,
+            implemented_types=implemented_types,
         )
