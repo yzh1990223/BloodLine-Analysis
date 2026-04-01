@@ -50,6 +50,12 @@ test("loads overview stats on first render and only fetches lineage when an item
       },
       {
         id: 3,
+        key: "view:dm.user_order_dashboard",
+        name: "dm.user_order_dashboard",
+        object_type: "table_view",
+      },
+      {
+        id: 4,
         key: "api:GET /api/orders/summary",
         name: "GET /api/orders/summary",
         object_type: "api_endpoint",
@@ -84,11 +90,15 @@ test("loads overview stats on first render and only fetches lineage when an item
   expect(await screen.findByText("对象概览")).toBeTruthy();
   expect(screen.getByText("总对象数")).toBeTruthy();
   expect(screen.getByText("闭环分析")).toBeTruthy();
+  expect(screen.getByText("数据视图")).toBeTruthy();
+  expect(screen.getByRole("link", { name: "查看数据视图对象列表" }).getAttribute("href")).toBe(
+    "/objects?type=table_view",
+  );
   expect(screen.getByText("API接口")).toBeTruthy();
   expect(screen.getByRole("link", { name: "查看 API 接口对象列表" }).getAttribute("href")).toBe(
     "/objects?type=api_endpoint",
   );
-  expect(screen.getAllByText("3").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("4").length).toBeGreaterThan(0);
   expect(fetchTableLineage).not.toHaveBeenCalled();
 
   fireEvent.change(screen.getByPlaceholderText("搜索数据表"), {

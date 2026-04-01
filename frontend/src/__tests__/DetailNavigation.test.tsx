@@ -24,6 +24,7 @@ vi.mock("../api", () => ({
           id: 1,
           key: "table:ods.orders",
           name: "ods.orders",
+          display_name: "订单表",
           metadata: {
             database_name: "ods",
             object_name: "orders",
@@ -39,7 +40,7 @@ vi.mock("../api", () => ({
       },
       items: [
         {
-          table: { id: 1, key: "table:ods.orders", name: "ods.orders" },
+          table: { id: 1, key: "table:ods.orders", name: "ods.orders", display_name: "订单表" },
           upstream_tables: [],
           downstream_tables: [],
           related_objects: { jobs: [], java_modules: [], transformations: [] },
@@ -77,9 +78,13 @@ test("table detail page renders metadata summary when available", async () => {
     </MemoryRouter>,
   );
 
-  expect(await screen.findByText("数据库：ods")).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "订单表" })).toBeTruthy();
+  expect(screen.getAllByText("ods.orders").length).toBeGreaterThan(0);
+  expect(screen.getByText("数据库：ods")).toBeTruthy();
+  expect(screen.getByText("技术名称：orders")).toBeTruthy();
   expect(screen.getByText("对象种类：table")).toBeTruthy();
   expect(screen.getByText("字段数：8")).toBeTruthy();
+  expect(screen.getByText("中文名称：订单表")).toBeTruthy();
 });
 
 test("impact page shows back buttons to detail and overview", async () => {

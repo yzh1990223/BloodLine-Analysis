@@ -4,6 +4,7 @@ import { TableLineageResponse } from "../types";
 export interface OverviewNodeData {
   key: string;
   label: string;
+  technicalName: string;
   role: "source" | "middle" | "sink";
   objectType: string;
   level: number;
@@ -92,6 +93,7 @@ export function buildOverviewGraph(
   const separateHandles = options.separateHandles ?? false;
   const edgeType = options.edgeType ?? "smoothstep";
   const tableNames = new Map<string, string>();
+  const displayNames = new Map<string, string>();
   const objectTypes = new Map<string, string>();
   const edgePairs = new Set<string>();
   const incomingCount = new Map<string, number>();
@@ -100,14 +102,17 @@ export function buildOverviewGraph(
   for (const lineage of lineages) {
     if (lineage.table) {
       tableNames.set(lineage.table.key, lineage.table.name);
+      displayNames.set(lineage.table.key, lineage.table.display_name ?? lineage.table.name);
       objectTypes.set(lineage.table.key, lineage.table.object_type ?? "data_table");
     }
     for (const upstream of lineage.upstream_tables) {
       tableNames.set(upstream.key, upstream.name);
+      displayNames.set(upstream.key, upstream.display_name ?? upstream.name);
       objectTypes.set(upstream.key, upstream.object_type ?? "data_table");
     }
     for (const downstream of lineage.downstream_tables) {
       tableNames.set(downstream.key, downstream.name);
+      displayNames.set(downstream.key, downstream.display_name ?? downstream.name);
       objectTypes.set(downstream.key, downstream.object_type ?? "data_table");
       if (lineage.table) {
         const edgeId = `${lineage.table.key}->${downstream.key}`;
@@ -171,7 +176,8 @@ export function buildOverviewGraph(
         type: "overviewObject",
         data: {
           key,
-          label: tableNames.get(key) ?? key,
+          label: displayNames.get(key) ?? tableNames.get(key) ?? key,
+          technicalName: tableNames.get(key) ?? key,
           role,
           objectType: objectTypes.get(key) ?? "data_table",
           level,

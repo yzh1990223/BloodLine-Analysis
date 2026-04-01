@@ -153,6 +153,12 @@ export function TableSearchPage() {
               linkLabel="查看数据表对象列表"
             />
             <OverviewStatCard
+              label="数据视图"
+              value={catalogItems.filter((item) => item.object_type === "table_view").length}
+              to="/objects?type=table_view"
+              linkLabel="查看数据视图对象列表"
+            />
+            <OverviewStatCard
               label="API接口"
               value={catalogItems.filter((item) => item.object_type === "api_endpoint").length}
               to="/objects?type=api_endpoint"

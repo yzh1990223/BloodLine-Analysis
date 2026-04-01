@@ -57,13 +57,15 @@ export function TableDetailPage() {
     return <main className="page"><p className="error">{error}</p></main>;
   }
 
-  const tableName = lineage?.table?.name ?? decodedTableKey;
+  const tableName = lineage?.table?.display_name ?? lineage?.table?.name ?? decodedTableKey;
+  const technicalTableName = lineage?.table?.name ?? decodedTableKey;
 
   return (
     <main className="page">
       <header className="page-header">
         <p className="eyebrow">对象详情</p>
         <h1>{tableName}</h1>
+        {technicalTableName !== tableName ? <p className="subtitle">{technicalTableName}</p> : null}
         {lineage?.table ? <ObjectTypeBadge objectType={lineage.table.object_type} /> : null}
         <div className="page-actions">
           <Link to="/">返回总览</Link>
@@ -78,9 +80,10 @@ export function TableDetailPage() {
           <h2>元数据摘要</h2>
           <div className="metadata-summary">
             <p>数据库：{lineage.table.metadata.database_name}</p>
+            <p>技术名称：{lineage.table.metadata.object_name}</p>
             <p>对象种类：{lineage.table.metadata.object_kind}</p>
             <p>字段数：{lineage.table.metadata.column_count}</p>
-            {lineage.table.metadata.comment ? <p>注释：{lineage.table.metadata.comment}</p> : null}
+            {lineage.table.metadata.comment ? <p>中文名称：{lineage.table.metadata.comment}</p> : null}
           </div>
         </section>
       ) : null}

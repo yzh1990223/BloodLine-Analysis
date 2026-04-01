@@ -3,6 +3,7 @@ export interface TableSummary {
   id: number;
   key: string;
   name: string;
+  display_name?: string;
   object_type?: string;
   metadata?: ObjectMetadataSummary;
 }

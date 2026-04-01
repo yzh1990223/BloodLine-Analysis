@@ -87,7 +87,7 @@ export function ObjectListPage() {
             {filteredItems.map((item) => (
               <li key={item.key} className="object-list-item">
                 <div className="object-list-main">
-                  <Link to={`/tables/${encodeURIComponent(item.key)}`}>{item.name}</Link>
+                  <Link to={`/tables/${encodeURIComponent(item.key)}`}>{item.display_name ?? item.name}</Link>
                   <ObjectTypeBadge objectType={item.object_type} />
                 </div>
                 <span className="object-list-key">{item.key}</span>

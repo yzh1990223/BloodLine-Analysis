@@ -36,6 +36,7 @@ function DetailLineageNode({ data }: NodeProps<OverviewNodeData>) {
         />
       ))}
       <strong>{data.label}</strong>
+      {data.technicalName !== data.label ? <small>{data.technicalName}</small> : null}
       {sourceHandles.map((handleId, index) => (
         <Handle
           key={handleId}

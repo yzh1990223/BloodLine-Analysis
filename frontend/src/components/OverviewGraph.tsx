@@ -18,6 +18,7 @@ export function OverviewObjectNode({ data }: NodeProps<OverviewNodeData>) {
     <div className="overview-object-card">
       <Handle type="target" position={Position.Left} className="overview-node-handle" />
       <strong>{data.label}</strong>
+      {data.technicalName !== data.label ? <small>{data.technicalName}</small> : null}
       <small>{objectTypeLabel(data.objectType)}</small>
       <Handle type="source" position={Position.Right} className="overview-node-handle" />
     </div>

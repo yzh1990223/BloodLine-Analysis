@@ -122,13 +122,15 @@ def _metadata_object_type(metadata_object: MySQLMetadataObject) -> str:
 def _serialize_object(node: Node) -> dict[str, Any]:
     """Serialize one lineage object with its frontend-visible type label."""
 
+    metadata = node.object_metadata
+    display_name = metadata.comment if metadata is not None and metadata.comment else node.name
     payload = {
         "id": node.id,
         "key": node.key,
         "name": node.name,
+        "display_name": display_name,
         "object_type": node.payload.get("object_type", DEFAULT_OBJECT_TYPE),
     }
-    metadata = node.object_metadata
     if metadata is not None:
         payload["metadata"] = {
             "database_name": metadata.database_name,

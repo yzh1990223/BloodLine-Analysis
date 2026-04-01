@@ -10,12 +10,22 @@ from bloodline_api.models import ObjectMetadataColumn
 
 
 def test_search_tables_returns_matching_nodes(client, db_session):
+    orders_node = Node(
+        type="data_object",
+        key="table:ods.orders",
+        name="ods.orders",
+        payload={"object_type": "data_table"},
+    )
+    db_session.add(orders_node)
+    db_session.flush()
     db_session.add(
-        Node(
-            type="data_object",
-            key="table:ods.orders",
-            name="ods.orders",
-            payload={"object_type": "data_table"},
+        ObjectMetadata(
+            node_id=orders_node.id,
+            database_name="ods",
+            object_name="orders",
+            object_kind="table",
+            comment="订单表",
+            metadata_source="mysql_information_schema",
         )
     )
     db_session.add(
@@ -42,6 +52,7 @@ def test_search_tables_returns_matching_nodes(client, db_session):
     items = response.json()["items"]
     assert any(item["key"] == "table:ods.orders" for item in items)
     assert any(item["object_type"] == "data_table" for item in items)
+    assert any(item.get("display_name") == "订单表" for item in items)
 
     api_response = client.get("/api/tables/search", params={"q": "orders/summary"})
 
@@ -778,6 +789,7 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
                     "id": triangle_a.id,
                     "key": "table:dm.triangle_a",
                     "name": "dm.triangle_a",
+                    "display_name": "dm.triangle_a",
                     "object_type": "data_table",
                     "cycle_edge_count": 3,
                 },
@@ -785,6 +797,7 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
                     "id": triangle_c.id,
                     "key": "table:dm.triangle_c",
                     "name": "dm.triangle_c",
+                    "display_name": "dm.triangle_c",
                     "object_type": "data_table",
                     "cycle_edge_count": 3,
                 },
@@ -792,6 +805,7 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
                     "id": triangle_b.id,
                     "key": "table:dm.triangle_b",
                     "name": "dm.triangle_b",
+                    "display_name": "dm.triangle_b",
                     "object_type": "data_table",
                     "cycle_edge_count": 2,
                 },
@@ -806,6 +820,7 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
                     "id": loop_left.id,
                     "key": "table:dm.loop_left",
                     "name": "dm.loop_left",
+                    "display_name": "dm.loop_left",
                     "object_type": "data_table",
                     "cycle_edge_count": 2,
                 },
@@ -813,6 +828,7 @@ def test_cycle_group_summary_returns_multi_table_closed_loops(client, db_session
                     "id": loop_right.id,
                     "key": "table:dm.loop_right",
                     "name": "dm.loop_right",
+                    "display_name": "dm.loop_right",
                     "object_type": "data_table",
                     "cycle_edge_count": 2,
                 },

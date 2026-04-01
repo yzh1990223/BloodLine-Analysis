@@ -42,7 +42,7 @@ test("stat cards link to the filtered object list page", async () => {
     items: [
       { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
       { id: 2, key: "source_file:orders.xlsx", name: "orders.xlsx", object_type: "source_file" },
-      { id: 3, key: "table:dm.orders", name: "dm.orders", object_type: "data_table" },
+      { id: 3, key: "table:dm.orders", name: "dm.orders", display_name: "订单表", object_type: "data_table" },
       {
         id: 4,
         key: "api:GET /api/orders/summary",
@@ -67,7 +67,7 @@ test("object list page filters by type and links each object to its detail page"
     items: [
       { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
       { id: 2, key: "source_file:orders.xlsx", name: "orders.xlsx", object_type: "source_file" },
-      { id: 3, key: "table:dm.orders", name: "dm.orders", object_type: "data_table" },
+      { id: 3, key: "table:dm.orders", name: "dm.orders", display_name: "订单表", object_type: "data_table" },
     ],
   });
 
@@ -98,7 +98,7 @@ test("object list page shows api endpoints when filtered by api_endpoint", async
   searchTables.mockResolvedValue({
     items: [
       { id: 1, key: "source_table:legacy_orders", name: "legacy_orders", object_type: "source_table" },
-      { id: 2, key: "table:dm.orders", name: "dm.orders", object_type: "data_table" },
+      { id: 2, key: "table:dm.orders", name: "dm.orders", display_name: "订单表", object_type: "data_table" },
       {
         id: 3,
         key: "api:GET /api/orders/summary",
@@ -120,6 +120,21 @@ test("object list page shows api endpoints when filtered by api_endpoint", async
     "/tables/api%3AGET%20%2Fapi%2Forders%2Fsummary",
   );
   expect(screen.queryByText("dm.orders")).toBeNull();
+});
+
+test("object list page prefers metadata display names while keeping technical keys visible", async () => {
+  searchTables.mockResolvedValue({
+    items: [{ id: 1, key: "table:dm.orders", name: "dm.orders", display_name: "订单表", object_type: "data_table" }],
+  });
+
+  render(
+    <MemoryRouter initialEntries={["/objects?type=data_table"]}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(await screen.findByRole("link", { name: "订单表" })).toBeTruthy();
+  expect(screen.getByText("table:dm.orders")).toBeTruthy();
 });
 
 test("cycle analysis page shows grouped closed loops and links each table to detail", async () => {
