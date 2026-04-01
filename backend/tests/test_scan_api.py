@@ -1,5 +1,8 @@
 from pathlib import Path
 
+from bloodline_api.models import ScanFailure
+from bloodline_api.models import ScanRun
+
 
 def test_latest_scan_run_returns_most_recent_scan_status(client):
     response = client.get("/api/scan-runs/latest")
@@ -62,6 +65,49 @@ def test_latest_scan_run_returns_saved_inputs(client):
     }
 
 
+def test_latest_scan_failures_returns_file_level_groups(client, db_session):
+    scan_run = ScanRun(status="completed", inputs={"java_source_root": "tests/fixtures/java"})
+    db_session.add(scan_run)
+    db_session.flush()
+    db_session.add_all(
+        [
+            ScanFailure(
+                scan_run_id=scan_run.id,
+                source_type="java",
+                file_path="tests/fixtures/java/ReportServiceImpl.java",
+                failure_type="sql_parse_error",
+                message="unable to parse SQL fragment",
+                object_key="java_module:ReportServiceImpl",
+                sql_snippet="select * from dm.user_order_summary",
+            ),
+            ScanFailure(
+                scan_run_id=scan_run.id,
+                source_type="metadata",
+                file_path="dm.v_report_summary",
+                failure_type="view_definition_parse_error",
+                message="unsupported view definition",
+                object_key="view:dm.v_report_summary",
+                sql_snippet="select * from base1",
+            ),
+        ]
+    )
+    db_session.commit()
+
+    response = client.get("/api/scan-runs/latest/failures")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["summary"] == {
+        "scan_run_id": scan_run.id,
+        "failure_count": 2,
+        "file_count": 2,
+        "source_counts": {"kettle": 0, "java": 1, "metadata": 1},
+    }
+    groups = {item["source_type"]: item for item in body["groups"]}
+    assert groups["java"]["files"][0]["file_path"] == "tests/fixtures/java/ReportServiceImpl.java"
+    assert groups["metadata"]["files"][0]["failures"][0]["failure_type"] == "view_definition_parse_error"
+
+
 def test_scan_accepts_shell_escaped_space_in_repo_path(client):
     response = client.post(
         "/api/scan",
@@ -101,6 +147,41 @@ def test_scan_accepts_metadata_database_whitelist(client):
     assert response.json()["inputs"]["metadata_databases"] == ["dm", "ods"]
     assert len(loaded_requests) == 1
     assert loaded_requests[0].databases == ["dm", "ods"]
+
+
+def test_scan_records_metadata_connection_failure_for_latest_summary(client):
+    from bloodline_api.connectors.mysql_metadata import MySQLMetadataConnectionError
+    from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
+
+    original_load = MySQLMetadataLoader.load
+    MySQLMetadataLoader.load = lambda self, request: (_ for _ in ()).throw(
+        MySQLMetadataConnectionError("MySQL 元数据连接失败，请检查 DSN、网络和账号权限后重试。(OperationalError)")
+    )
+    try:
+        response = client.post(
+            "/api/scan",
+            json={
+                "repo_path": str(Path("tests/fixtures/sample.repo.xml")),
+                "mysql_dsn": "mysql+pymysql://user:pass@localhost/dm",
+            },
+        )
+    finally:
+        MySQLMetadataLoader.load = original_load
+
+    assert response.status_code == 400
+
+    failures_response = client.get("/api/scan-runs/latest/failures")
+    assert failures_response.status_code == 200
+    body = failures_response.json()
+    assert body["summary"] == {
+        "scan_run_id": body["scan_run"]["id"],
+        "failure_count": 1,
+        "file_count": 1,
+        "source_counts": {"kettle": 0, "java": 0, "metadata": 1},
+    }
+    metadata_file = body["groups"][2]["files"][0]
+    assert metadata_file["file_path"] == "mysql+pymysql://user:pass@localhost/dm"
+    assert metadata_file["failures"][0]["failure_type"] == "MySQLMetadataConnectionError"
 
 
 def test_scan_accepts_multiple_repo_and_java_paths(client):

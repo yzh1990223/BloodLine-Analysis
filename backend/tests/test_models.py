@@ -1,4 +1,4 @@
-from bloodline_api.models import Edge, Node, ObjectMetadata, ObjectMetadataColumn, ScanRun
+from bloodline_api.models import Edge, Node, ObjectMetadata, ObjectMetadataColumn, ScanFailure, ScanRun
 
 
 def test_models_expose_expected_tablenames():
@@ -7,6 +7,7 @@ def test_models_expose_expected_tablenames():
     assert Edge.__tablename__ == "edges"
     assert ObjectMetadata.__tablename__ == "object_metadata"
     assert ObjectMetadataColumn.__tablename__ == "object_metadata_columns"
+    assert ScanFailure.__tablename__ == "scan_failures"
 
 
 def test_object_metadata_tables_persist_latest_metadata(db_session):

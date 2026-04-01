@@ -28,6 +28,11 @@ class ScanRun(Base):
         nullable=False,
         server_default=func.now(),
     )
+    failures: Mapped[list["ScanFailure"]] = relationship(
+        back_populates="scan_run",
+        cascade="all, delete-orphan",
+        order_by="ScanFailure.id",
+    )
 
 
 class Node(Base):
@@ -129,3 +134,24 @@ class ObjectMetadataColumn(Base):
     is_nullable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     column_comment: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     object_metadata: Mapped[ObjectMetadata] = relationship(back_populates="columns")
+
+
+class ScanFailure(Base):
+    """A persisted failure captured during one scan run."""
+
+    __tablename__ = "scan_failures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    scan_run_id: Mapped[int] = mapped_column(ForeignKey("scan_runs.id"), nullable=False, index=True)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    file_path: Mapped[str] = mapped_column(String(1024), nullable=False, index=True)
+    failure_type: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    message: Mapped[str] = mapped_column(String(2048), nullable=False)
+    object_key: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    sql_snippet: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    scan_run: Mapped[ScanRun] = relationship(back_populates="failures")

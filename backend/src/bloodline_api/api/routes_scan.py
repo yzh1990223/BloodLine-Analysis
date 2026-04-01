@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.orm import Session
 
+from bloodline_api.connectors.mysql_metadata import MySQLMetadataConnectionError
 from bloodline_api.db import get_db
 from bloodline_api.models import ScanRun
 from bloodline_api.services.lineage_query import lineage_query_service
@@ -95,6 +96,8 @@ def create_scan(request: ScanRequest | None = None, db: Session = Depends(get_db
             metadata_databases=normalized_inputs.get("metadata_databases"),
             inputs=normalized_inputs,
         )
+    except MySQLMetadataConnectionError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     return {
@@ -110,3 +113,10 @@ def latest_scan_run(db: Session = Depends(get_db)) -> dict[str, object]:
 
     latest = next(iter(lineage_query_service.list_scan_runs(db)), None)
     return {"scan_run": _scan_run_payload(latest)}
+
+
+@router.get("/scan-runs/latest/failures")
+def latest_scan_failures(db: Session = Depends(get_db)) -> dict[str, object]:
+    """Return the most recent scan failures grouped by source and file."""
+
+    return lineage_query_service.get_latest_scan_failures(db)

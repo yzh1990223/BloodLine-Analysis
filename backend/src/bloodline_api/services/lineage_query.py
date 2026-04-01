@@ -10,9 +10,10 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
+from bloodline_api.connectors.mysql_metadata import MySQLMetadataConnectionError
 from bloodline_api.connectors.mysql_metadata import MySQLMetadataObject
 from bloodline_api.connectors.mysql_metadata import build_mysql_metadata_request
-from bloodline_api.models import Edge, Node, ObjectMetadata, ObjectMetadataColumn, ScanRun
+from bloodline_api.models import Edge, Node, ObjectMetadata, ObjectMetadataColumn, ScanFailure, ScanRun
 from bloodline_api.parsers.java_controller_parser import parse_controller_endpoints
 from bloodline_api.parsers.java_lineage_reducer import reduce_java_api_endpoints
 from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
@@ -147,6 +148,38 @@ def _serialize_object(node: Node) -> dict[str, Any]:
     return payload
 
 
+def _scan_run_payload(scan_run: ScanRun | None) -> dict[str, Any] | None:
+    """Serialize a scan run for the latest-failures endpoint."""
+
+    if scan_run is None:
+        return None
+
+    return {
+        "id": scan_run.id,
+        "status": scan_run.status,
+        "inputs": scan_run.inputs or {},
+        "started_at": scan_run.started_at,
+        "finished_at": scan_run.finished_at,
+        "created_at": scan_run.created_at,
+    }
+
+
+def _scan_failure_payload(scan_failure: ScanFailure) -> dict[str, Any]:
+    """Serialize one persisted failure record."""
+
+    return {
+        "id": scan_failure.id,
+        "scan_run_id": scan_failure.scan_run_id,
+        "source_type": scan_failure.source_type,
+        "file_path": scan_failure.file_path,
+        "failure_type": scan_failure.failure_type,
+        "message": scan_failure.message,
+        "object_key": scan_failure.object_key,
+        "sql_snippet": scan_failure.sql_snippet,
+        "created_at": scan_failure.created_at,
+    }
+
+
 class LineageQueryService:
     """Orchestrate scan persistence and graph-shaped query responses."""
 
@@ -158,6 +191,33 @@ class LineageQueryService:
         db.execute(delete(Edge))
         db.execute(delete(Node))
         db.flush()
+
+    def _record_scan_failure(
+        self,
+        db: Session,
+        *,
+        scan_run: ScanRun,
+        source_type: str,
+        file_path: str,
+        failure_type: str,
+        message: str,
+        object_key: str | None = None,
+        sql_snippet: str | None = None,
+    ) -> ScanFailure:
+        """Persist one scan failure tied to the current scan run."""
+
+        failure = ScanFailure(
+            scan_run_id=scan_run.id,
+            source_type=source_type,
+            file_path=file_path,
+            failure_type=failure_type,
+            message=message,
+            object_key=object_key,
+            sql_snippet=sql_snippet,
+        )
+        db.add(failure)
+        db.flush()
+        return failure
 
     def _get_or_create_node(self, db: Session, node_type: str, key: str, name: str) -> Node:
         """Upsert a graph node by stable business key."""
@@ -248,6 +308,7 @@ class LineageQueryService:
         self,
         db: Session,
         *,
+        scan_run: ScanRun,
         object_nodes: dict[str, Node],
         metadata_aliases: dict[str, Node],
         fact_edges: list[tuple[str, str, str]],
@@ -276,6 +337,16 @@ class LineageQueryService:
             else:
                 metadata.view_parse_status = "failed"
                 metadata.view_parse_error = parse_error or "无法从 VIEW_DEFINITION 中识别底层对象，请检查 SQL 方言或定义内容。"
+                self._record_scan_failure(
+                    db,
+                    scan_run=scan_run,
+                    source_type="metadata",
+                    file_path=f"{metadata.database_name}.{metadata.object_name}",
+                    failure_type="view_definition_parse_error",
+                    message=metadata.view_parse_error,
+                    object_key=node.key,
+                    sql_snippet=metadata.view_definition,
+                )
             db.flush()
 
     def _load_mysql_metadata_nodes(
@@ -511,21 +582,48 @@ class LineageQueryService:
 
         fact_edges: list[tuple[str, str, str]] = []
         object_nodes: dict[str, Node] = {}
-        metadata_aliases = self._load_mysql_metadata_nodes(
-            db,
-            mysql_dsn=mysql_dsn,
-            metadata_databases=metadata_databases,
-            object_nodes=object_nodes,
-        )
-        self._derive_view_definition_facts(
-            db,
-            object_nodes=object_nodes,
-            metadata_aliases=metadata_aliases,
-            fact_edges=fact_edges,
-        )
+        metadata_aliases: dict[str, Node] = {}
+        try:
+            metadata_aliases = self._load_mysql_metadata_nodes(
+                db,
+                mysql_dsn=mysql_dsn,
+                metadata_databases=metadata_databases,
+                object_nodes=object_nodes,
+            )
+            self._derive_view_definition_facts(
+                db,
+                scan_run=scan_run,
+                object_nodes=object_nodes,
+                metadata_aliases=metadata_aliases,
+                fact_edges=fact_edges,
+            )
+        except MySQLMetadataConnectionError as exc:
+            self._record_scan_failure(
+                db,
+                scan_run=scan_run,
+                source_type="metadata",
+                file_path=mysql_dsn or "mysql_dsn",
+                failure_type=exc.__class__.__name__,
+                message=str(exc),
+            )
+            scan_run.status = "failed"
+            scan_run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+            raise
 
         for repo_file in _resolve_repo_paths(_normalized_input_values(repo_paths, repo_path)):
-            repo_result = RepoParser().parse_file(repo_file)
+            try:
+                repo_result = RepoParser().parse_file(repo_file)
+            except Exception as exc:  # pragma: no cover - defensive scan record
+                self._record_scan_failure(
+                    db,
+                    scan_run=scan_run,
+                    source_type="kettle",
+                    file_path=str(repo_file),
+                    failure_type=exc.__class__.__name__,
+                    message=str(exc),
+                )
+                continue
             job_nodes = {
                 job.name: self._get_or_create_node(db, "job", f"job:{job.name}", job.name)
                 for job in repo_result.jobs
@@ -637,12 +735,33 @@ class LineageQueryService:
             java_files.extend(java_root.rglob("*.java"))
         if java_files:
             deduped_java_files = sorted({java_file.resolve(): java_file for java_file in java_files}.values())
-            java_results = [JavaSqlParser().parse_file(java_file) for java_file in deduped_java_files]
-            java_api_facts = [
-                endpoint
-                for java_file in deduped_java_files
-                for endpoint in parse_controller_endpoints(java_file)
-            ]
+            java_results = []
+            java_api_facts = []
+            for java_file in deduped_java_files:
+                try:
+                    java_results.append(JavaSqlParser().parse_file(java_file))
+                except Exception as exc:  # pragma: no cover - defensive scan record
+                    self._record_scan_failure(
+                        db,
+                        scan_run=scan_run,
+                        source_type="java",
+                        file_path=str(java_file),
+                        failure_type=exc.__class__.__name__,
+                        message=str(exc),
+                    )
+                    continue
+                try:
+                    java_api_facts.extend(parse_controller_endpoints(java_file))
+                except Exception as exc:  # pragma: no cover - defensive scan record
+                    self._record_scan_failure(
+                        db,
+                        scan_run=scan_run,
+                        source_type="java",
+                        file_path=str(java_file),
+                        failure_type=exc.__class__.__name__,
+                        message=str(exc),
+                    )
+                    continue
             reduced_java_results = reduce_java_modules(java_results)
             reduced_api_results = reduce_java_api_endpoints(java_api_facts, reduced_java_results)
             for java_result in java_results:
@@ -753,6 +872,58 @@ class LineageQueryService:
 
         stmt = select(ScanRun).order_by(ScanRun.created_at.desc(), ScanRun.id.desc())
         return list(db.scalars(stmt).all())
+
+    def get_latest_scan_failures(self, db: Session) -> dict[str, Any]:
+        """Return grouped scan failures for the most recent scan run."""
+
+        latest = next(iter(self.list_scan_runs(db)), None)
+        empty_summary = {
+            "scan_run_id": None,
+            "failure_count": 0,
+            "file_count": 0,
+            "source_counts": {"kettle": 0, "java": 0, "metadata": 0},
+        }
+        if latest is None:
+            return {"scan_run": None, "summary": empty_summary, "groups": []}
+
+        failures = list(
+            db.scalars(
+                select(ScanFailure)
+                .where(ScanFailure.scan_run_id == latest.id)
+                .order_by(ScanFailure.source_type.asc(), ScanFailure.file_path.asc(), ScanFailure.id.asc())
+            ).all()
+        )
+        grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
+        source_counts = {"kettle": 0, "java": 0, "metadata": 0}
+        for failure in failures:
+            source_counts[failure.source_type] = source_counts.get(failure.source_type, 0) + 1
+            grouped.setdefault(failure.source_type, {}).setdefault(failure.file_path, []).append(
+                _scan_failure_payload(failure)
+            )
+
+        groups: list[dict[str, Any]] = []
+        for source_type in ("kettle", "java", "metadata"):
+            file_groups = grouped.get(source_type, {})
+            groups.append(
+                {
+                    "source_type": source_type,
+                    "files": [
+                        {"file_path": file_path, "failures": file_failures}
+                        for file_path, file_failures in sorted(file_groups.items(), key=lambda item: item[0])
+                    ],
+                }
+            )
+
+        return {
+            "scan_run": _scan_run_payload(latest),
+            "summary": {
+                "scan_run_id": latest.id,
+                "failure_count": len(failures),
+                "file_count": len({failure.file_path for failure in failures}),
+                "source_counts": source_counts,
+            },
+            "groups": groups,
+        }
 
     def list_jobs(self, db: Session) -> list[Node]:
         """Return scanned job nodes for list views and related-object lookups."""
