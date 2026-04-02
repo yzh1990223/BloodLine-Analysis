@@ -55,6 +55,7 @@ class JavaTypeIndex:
 
 CRUD_METHODS = {"getById", "list", "page", "save", "updateById", "removeById"}
 SERVICE_IMPL_PATTERN = re.compile(r"ServiceImpl<\s*([\w\.\[\]<>]+)")
+IGNORED_ENDPOINT_WRAPPER_CALLS = {"Result.data", "Result.success", "Result.fail", "Result.error"}
 
 
 def _receiver_to_module_name(receiver: str) -> str:
@@ -215,6 +216,12 @@ def _classify_unresolved_call(
     return "unresolved_target"
 
 
+def _should_ignore_endpoint_wrapper_call(call: str) -> bool:
+    """Skip framework wrapper calls when summarizing endpoint diagnostics."""
+
+    return call in IGNORED_ENDPOINT_WRAPPER_CALLS
+
+
 def _reduce_method_tables(
     modules_by_name: dict[str, JavaModuleParseResult],
     statements_by_module: dict[str, dict[str, JavaSqlStatement]],
@@ -340,6 +347,8 @@ def reduce_java_api_endpoints(
         unresolved_reasons: list[dict[str, str]] = []
         if source_method is not None:
             for call in source_method.calls:
+                if _should_ignore_endpoint_wrapper_call(call):
+                    continue
                 if _resolve_call_target(source_modules_by_name, source_type_index, endpoint.controller_module_name, call) is None:
                     unresolved_call_count += 1
                     unresolved_reasons.append(

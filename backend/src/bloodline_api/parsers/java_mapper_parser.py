@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import html
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -18,6 +19,14 @@ XML_METHOD_PATTERN = re.compile(
     re.IGNORECASE | re.DOTALL,
 )
 XML_TAG_PATTERN = re.compile(r"<[^>]+>")
+XML_WHERE_OPEN_PATTERN = re.compile(r"<where[^>]*>", re.IGNORECASE)
+XML_WHERE_CLOSE_PATTERN = re.compile(r"</where>", re.IGNORECASE)
+XML_SET_OPEN_PATTERN = re.compile(r"<set[^>]*>", re.IGNORECASE)
+XML_SET_CLOSE_PATTERN = re.compile(r"</set>", re.IGNORECASE)
+XML_FOREACH_OPEN_PATTERN = re.compile(r"<foreach[^>]*open=\"([^\"]*)\"[^>]*close=\"([^\"]*)\"[^>]*>", re.IGNORECASE)
+XML_FOREACH_CLOSE_PATTERN = re.compile(r"</foreach>", re.IGNORECASE)
+MYBATIS_PARAM_PATTERN = re.compile(r"#\{[^}]+\}")
+MYBATIS_TEXT_PARAM_PATTERN = re.compile(r"\$\{[^}]+\}")
 
 
 @dataclass(slots=True)
@@ -45,8 +54,19 @@ def extract_annotated_method_sql(source: str) -> list[AnnotatedMethodSql]:
 def _normalize_xml_sql(sql_fragment: str) -> str:
     """Collapse static XML SQL text into a parser-friendly string."""
 
-    without_tags = XML_TAG_PATTERN.sub(" ", sql_fragment)
-    return " ".join(without_tags.split()).strip()
+    normalized = html.unescape(sql_fragment)
+    normalized = XML_WHERE_OPEN_PATTERN.sub(" WHERE ", normalized)
+    normalized = XML_WHERE_CLOSE_PATTERN.sub(" ", normalized)
+    normalized = XML_SET_OPEN_PATTERN.sub(" SET ", normalized)
+    normalized = XML_SET_CLOSE_PATTERN.sub(" ", normalized)
+    normalized = XML_FOREACH_OPEN_PATTERN.sub(lambda match: f" {match.group(1) or '('} ", normalized)
+    normalized = XML_FOREACH_CLOSE_PATTERN.sub(" ) ", normalized)
+    normalized = XML_TAG_PATTERN.sub(" ", normalized)
+    normalized = MYBATIS_PARAM_PATTERN.sub("0", normalized)
+    normalized = MYBATIS_TEXT_PARAM_PATTERN.sub("placeholder", normalized)
+    normalized = normalized.replace("]]>", " ")
+    normalized = " ".join(normalized.split()).strip()
+    return normalized
 
 
 def extract_xml_method_sql(java_path: Path) -> list[AnnotatedMethodSql]:

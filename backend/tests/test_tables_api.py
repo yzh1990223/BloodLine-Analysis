@@ -242,6 +242,22 @@ def test_api_endpoint_payload_reports_unresolved_reason_labels(client):
     ]
 
 
+def test_api_endpoint_payload_ignores_result_wrapper_calls(client):
+    client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_api_interface_controller"},
+    )
+
+    payload = client.get("/api/tables/search", params={"q": "/assetManagement/selectAssetManagementNetWorth"})
+    assert payload.status_code == 200
+    api_item = next(
+        item for item in payload.json()["items"] if item["key"] == "api:GET /assetManagement/selectAssetManagementNetWorth"
+    )
+    assert api_item["payload"]["diagnostics"]["resolved_calls"] == 1
+    assert api_item["payload"]["diagnostics"]["unresolved_calls"] == 0
+    assert api_item["payload"]["diagnostics"]["unresolved_reasons"] == []
+
+
 def test_api_endpoint_detail_exposes_diagnostics_and_touched_tables(client):
     client.post(
         "/api/scan",

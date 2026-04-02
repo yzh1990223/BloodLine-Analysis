@@ -119,6 +119,15 @@ def test_java_parser_extracts_tables_from_resources_mapper_layout():
     assert result.methods["loadOrders"].statement_ids == ["sql_0"]
 
 
+def test_java_parser_normalizes_where_blocks_and_placeholders_from_xml_mapper():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_xml_where_mapper/PressureMapper.java"))
+
+    assert result.read_tables == ["RM_PRESSURE_RESULT"]
+    assert result.write_tables == []
+    assert result.methods["loadByExecId"].statement_ids == ["sql_0"]
+
+
 def test_java_parser_skips_unstable_dynamic_xml_mapper_sql():
     parser = JavaSqlParser()
     result = parser.parse_file(Path("tests/fixtures/java_dynamic_xml_mapper/DynamicMapper.java"))
