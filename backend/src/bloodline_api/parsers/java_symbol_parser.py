@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 
 METHOD_DEF_PATTERN = re.compile(
-    r"(?:public|private|protected)\s+"
+    r"(?:public|private|protected)?\s*"
     r"(?:static\s+)?"
     r"(?:final\s+)?"
     r"[^;{}=]+?\s+"
@@ -24,6 +24,11 @@ FIELD_DECL_PATTERN = re.compile(
     r"((?:@\w+(?:\([^)]*\))?\s*)*)(?:public|private|protected)?\s*(?:static\s+)?(?:final\s+)?([\w<>\[\]\.]+)\s+(\w+)\s*(?:=[^;]*)?;",
     re.MULTILINE,
 )
+TABLE_NAME_PATTERN = re.compile(r'@TableName\("([^"]+)"\)')
+BASE_MAPPER_PATTERN = re.compile(r"extends\s+BaseMapper<\s*([^>]+?)\s*>")
+BLOCK_COMMENT_PATTERN = re.compile(r"/\*.*?\*/", re.DOTALL)
+LINE_COMMENT_PATTERN = re.compile(r"(?m)//.*$")
+
 @dataclass(slots=True)
 class JavaMethodScope:
     """One parsed Java method body with stable minimal facts."""
@@ -61,6 +66,8 @@ def parse_method_scopes(source: str) -> list[JavaMethodScope]:
     """Extract Java method bodies with naive brace matching."""
 
     scopes: list[JavaMethodScope] = []
+    declaration = parse_type_declaration(source)
+    type_name = None if declaration is None else declaration.type_name
     for match in METHOD_DEF_PATTERN.finditer(source):
         depth = 1
         cursor = match.end()
@@ -78,6 +85,30 @@ def parse_method_scopes(source: str) -> list[JavaMethodScope]:
                 end_offset=cursor,
             )
         )
+    if type_name:
+        constructor_pattern = re.compile(
+            r"(?:public|private|protected)?\s*"
+            + re.escape(type_name)
+            + r"\s*\((?:[^()]|\([^()]*\))*\)\s*\{",
+            re.MULTILINE,
+        )
+        for match in constructor_pattern.finditer(source):
+            depth = 1
+            cursor = match.end()
+            while cursor < len(source) and depth > 0:
+                if source[cursor] == "{":
+                    depth += 1
+                elif source[cursor] == "}":
+                    depth -= 1
+                cursor += 1
+            scopes.append(
+                JavaMethodScope(
+                    method_name=type_name,
+                    body=source[match.end() : cursor - 1],
+                    start_offset=match.start(),
+                    end_offset=cursor,
+                )
+            )
     for match in DECLARATION_METHOD_PATTERN.finditer(source):
         method_name = match.group(1)
         if any(scope.method_name == method_name for scope in scopes):
@@ -99,6 +130,48 @@ def _normalize_declared_type_name(type_ref: str) -> str:
     normalized = re.sub(r"<.*>$", "", type_ref.strip())
     normalized = re.sub(r"\[\]$", "", normalized)
     return normalized.split(".")[-1]
+
+
+def _strip_java_comments(source: str) -> str:
+    """Remove Java line and block comments from a source snippet."""
+
+    without_block_comments = BLOCK_COMMENT_PATTERN.sub(" ", source)
+    return LINE_COMMENT_PATTERN.sub("", without_block_comments)
+
+
+def _primary_type_declaration_match(source: str) -> re.Match[str] | None:
+    """Return the first top-level type declaration match if present."""
+
+    return TYPE_DECL_PATTERN.search(_strip_java_comments(source))
+
+
+def parse_table_name(source: str) -> str | None:
+    """Extract a direct @TableName value from a Java entity declaration."""
+
+    cleaned_source = _strip_java_comments(source)
+    match = _primary_type_declaration_match(cleaned_source)
+    if match is None:
+        return None
+
+    matches = TABLE_NAME_PATTERN.findall(cleaned_source[: match.start()])
+    if not matches:
+        return None
+    return matches[-1].strip()
+
+
+def parse_basemapper_entity(source: str) -> str | None:
+    """Extract the entity type bound to a BaseMapper declaration."""
+
+    cleaned_source = _strip_java_comments(source)
+    match = _primary_type_declaration_match(cleaned_source)
+    if match is None:
+        return None
+
+    cleaned_header = cleaned_source[match.start() : match.end()]
+    base_match = BASE_MAPPER_PATTERN.search(cleaned_header)
+    if base_match is None:
+        return None
+    return _normalize_declared_type_name(base_match.group(1))
 
 
 def parse_type_declaration(source: str) -> JavaTypeDeclaration | None:

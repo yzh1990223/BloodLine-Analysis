@@ -11,10 +11,12 @@ from bloodline_api.parsers.java_call_graph import build_method_call_map
 from bloodline_api.parsers.java_mapper_parser import extract_annotated_method_sql
 from bloodline_api.parsers.java_mapper_parser import decode_java_string_literal
 from bloodline_api.parsers.java_mapper_parser import extract_xml_method_sql
+from bloodline_api.parsers.java_symbol_parser import parse_basemapper_entity
 from bloodline_api.parsers.java_symbol_parser import parse_extended_type
 from bloodline_api.parsers.java_symbol_parser import parse_field_types
 from bloodline_api.parsers.java_symbol_parser import parse_implemented_types
 from bloodline_api.parsers.java_symbol_parser import parse_method_scopes
+from bloodline_api.parsers.java_symbol_parser import parse_table_name
 from bloodline_api.parsers.sql_table_extractor import extract_tables_with_error
 
 # Only string literals that look like SQL statements are considered in the MVP.
@@ -35,6 +37,8 @@ class JavaModuleParseResult:
     receiver_types: dict[str, str]
     implemented_types: list[str]
     extended_type: str | None
+    table_name: str | None
+    basemapper_entity: str | None
     parse_failures: list["JavaSqlParseFailure"]
 
 
@@ -81,6 +85,8 @@ class JavaSqlParser:
         receiver_types = parse_field_types(source, method_scopes)
         implemented_types = parse_implemented_types(source)
         extended_type = parse_extended_type(source)
+        table_name = parse_table_name(source)
+        basemapper_entity = parse_basemapper_entity(source)
         method_call_map = build_method_call_map(method_scopes)
         parse_failures: list[JavaSqlParseFailure] = []
         annotated_sql = extract_annotated_method_sql(source)
@@ -169,5 +175,7 @@ class JavaSqlParser:
             receiver_types=receiver_types,
             implemented_types=implemented_types,
             extended_type=extended_type,
+            table_name=table_name,
+            basemapper_entity=basemapper_entity,
             parse_failures=parse_failures,
         )

@@ -1,8 +1,10 @@
 from pathlib import Path
 
 from bloodline_api.connectors.java_source_reader import read_java_source
+from bloodline_api.parsers.java_symbol_parser import parse_basemapper_entity
 from bloodline_api.parsers.java_symbol_parser import parse_field_types
 from bloodline_api.parsers.java_symbol_parser import parse_implemented_types
+from bloodline_api.parsers.java_symbol_parser import parse_table_name
 from bloodline_api.parsers.java_controller_parser import parse_controller_endpoints
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.sql_table_extractor import extract_tables
@@ -275,6 +277,73 @@ def test_java_parser_skips_unstable_dynamic_xml_mapper_sql():
     assert result.write_tables == []
     assert result.statements == []
     assert result.methods["findIds"].statement_ids == []
+
+
+def test_java_symbol_parser_extracts_table_name_annotation():
+    source = read_java_source(Path("tests/fixtures/java_mybatis_plus_crud/RpAmFundRiskprofitEntity.java"))
+
+    assert parse_table_name(source) == "RP_AM_FUND_RISKPROFIT"
+
+
+def test_java_symbol_parser_extracts_basemapper_entity_binding():
+    source = read_java_source(Path("tests/fixtures/java_mybatis_plus_crud/RpAmFundRiskprofitMapper.java"))
+
+    assert parse_basemapper_entity(source) == "RpAmFundRiskprofitEntity"
+
+
+def test_java_parser_exposes_mybatis_plus_static_metadata():
+    parser = JavaSqlParser()
+    entity_result = parser.parse_file(Path("tests/fixtures/java_mybatis_plus_crud/RpAmFundRiskprofitEntity.java"))
+    mapper_result = parser.parse_file(Path("tests/fixtures/java_mybatis_plus_crud/RpAmFundRiskprofitMapper.java"))
+
+    assert entity_result.table_name == "RP_AM_FUND_RISKPROFIT"
+    assert entity_result.basemapper_entity is None
+    assert mapper_result.table_name is None
+    assert mapper_result.basemapper_entity == "RpAmFundRiskprofitEntity"
+
+
+def test_java_symbol_parser_ignores_locals_in_package_private_methods_and_constructors():
+    source = """
+    package com.demo;
+
+    public class DemoService {
+        DemoService() {
+            String constructorLocal = "x";
+        }
+
+        void packagePrivateMethod() {
+            Integer methodLocal = 1;
+        }
+
+        private String actualField;
+    }
+    """
+
+    assert parse_field_types(source) == {"actualField": "String"}
+
+
+def test_java_symbol_parser_extracts_metadata_from_primary_declaration_only():
+    entity_source = """
+    package com.demo;
+
+    // @TableName("WRONG_COMMENT")
+    /* @TableName("WRONG_BLOCK") */
+    @TableName("RIGHT_TABLE")
+    public class DemoEntity {
+        @TableName("INNER_TABLE")
+        private String ignoredField;
+    }
+    """
+
+    mapper_source = """
+    package com.demo;
+
+    public interface DemoMapper /* extends BaseMapper<WrongEntity> */ extends BaseMapper<RealEntity> {
+    }
+    """
+
+    assert parse_table_name(entity_source) == "RIGHT_TABLE"
+    assert parse_basemapper_entity(mapper_source) == "RealEntity"
 
 
 def test_java_symbol_parser_extracts_controller_field_types():
