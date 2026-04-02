@@ -375,6 +375,221 @@ def test_java_lineage_reducer_derives_crud_reads_and_writes_from_mapper_metadata
     assert service.methods["insertResult"].write_tables == ["RP_AM_FUND_RISKPROFIT"]
 
 
+def test_java_lineage_reducer_supports_serviceimpl_base_mapper_crud_variants(tmp_path):
+    from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
+
+    entity_path = tmp_path / "ReportEntity.java"
+    entity_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import com.baomidou.mybatisplus.annotation.TableName;
+
+        @TableName("REPORT_TABLE")
+        public class ReportEntity {
+        }
+        """
+    )
+
+    mapper_path = tmp_path / "ReportMapper.java"
+    mapper_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface ReportMapper extends BaseMapper<ReportEntity> {
+        }
+        """
+    )
+
+    service_path = tmp_path / "ReportServiceImpl.java"
+    service_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportServiceImpl extends ServiceImpl<ReportMapper, ReportEntity> {
+            public Page<ReportEntity> selectPageViaBaseMapper() {
+                return this.baseMapper.selectPage(new Page<>(), new LambdaQueryWrapper<>());
+            }
+
+            public Page<ReportEntity> selectPageViaGetter() {
+                return getBaseMapper().selectPage(new Page<>(), new LambdaQueryWrapper<>());
+            }
+        }
+        """
+    )
+
+    reduced = reduce_java_modules(
+        [
+            JavaSqlParser().parse_file(entity_path),
+            JavaSqlParser().parse_file(mapper_path),
+            JavaSqlParser().parse_file(service_path),
+        ]
+    )
+
+    service = reduced["ReportServiceImpl"]
+    assert service.methods["selectPageViaBaseMapper"].read_tables == ["REPORT_TABLE"]
+    assert service.methods["selectPageViaGetter"].read_tables == ["REPORT_TABLE"]
+
+
+def test_java_lineage_reducer_does_not_bridge_naked_getbasemapper_or_crud_named_local_methods(tmp_path):
+    from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
+
+    entity_path = tmp_path / "ReportEntity.java"
+    entity_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import com.baomidou.mybatisplus.annotation.TableName;
+
+        @TableName("REPORT_TABLE")
+        public class ReportEntity {
+        }
+        """
+    )
+
+    mapper_path = tmp_path / "ReportMapper.java"
+    mapper_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface ReportMapper extends BaseMapper<ReportEntity> {
+        }
+        """
+    )
+
+    service_path = tmp_path / "ReportServiceImpl.java"
+    service_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportServiceImpl extends ServiceImpl<ReportMapper, ReportEntity> {
+            public Page<ReportEntity> selectPage() {
+                getBaseMapper();
+                return null;
+            }
+        }
+        """
+    )
+
+    reduced = reduce_java_modules(
+        [
+            JavaSqlParser().parse_file(entity_path),
+            JavaSqlParser().parse_file(mapper_path),
+            JavaSqlParser().parse_file(service_path),
+        ]
+    )
+
+    assert reduced["ReportServiceImpl"].methods["selectPage"].read_tables == []
+
+
+def test_java_lineage_reducer_does_not_bridge_local_selectpage_helper_calls(tmp_path):
+    from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
+
+    entity_path = tmp_path / "ReportEntity.java"
+    entity_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import com.baomidou.mybatisplus.annotation.TableName;
+
+        @TableName("REPORT_TABLE")
+        public class ReportEntity {
+        }
+        """
+    )
+
+    mapper_path = tmp_path / "ReportMapper.java"
+    mapper_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface ReportMapper extends BaseMapper<ReportEntity> {
+        }
+        """
+    )
+
+    service_path = tmp_path / "ReportServiceImpl.java"
+    service_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportServiceImpl extends ServiceImpl<ReportMapper, ReportEntity> {
+            public Page<ReportEntity> selectPageResult() {
+                return selectPage();
+            }
+
+            public Page<ReportEntity> selectPage() {
+                return null;
+            }
+        }
+        """
+    )
+
+    reduced = reduce_java_modules(
+        [
+            JavaSqlParser().parse_file(entity_path),
+            JavaSqlParser().parse_file(mapper_path),
+            JavaSqlParser().parse_file(service_path),
+        ]
+    )
+
+    assert reduced["ReportServiceImpl"].methods["selectPageResult"].read_tables == []
+    assert reduced["ReportServiceImpl"].methods["selectPage"].read_tables == []
+
+
+def test_java_lineage_reducer_does_not_fall_back_to_generic_basemapper_name_without_serviceimpl_binding(tmp_path):
+    from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
+
+    entity_path = tmp_path / "ReportEntity.java"
+    entity_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import com.baomidou.mybatisplus.annotation.TableName;
+
+        @TableName("REPORT_TABLE")
+        public class ReportEntity {
+        }
+        """
+    )
+
+    basemapper_path = tmp_path / "BaseMapper.java"
+    basemapper_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface BaseMapper<T> {
+            Page<T> selectPage(Page<T> page, LambdaQueryWrapper<T> queryWrapper);
+        }
+        """
+    )
+
+    service_path = tmp_path / "ReportService.java"
+    service_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportService {
+            private BaseMapper<ReportEntity> baseMapper;
+
+            public Page<ReportEntity> selectPageResult() {
+                return baseMapper.selectPage(new Page<>(), new LambdaQueryWrapper<>());
+            }
+        }
+        """
+    )
+
+    reduced = reduce_java_modules(
+        [
+            JavaSqlParser().parse_file(entity_path),
+            JavaSqlParser().parse_file(basemapper_path),
+            JavaSqlParser().parse_file(service_path),
+        ]
+    )
+
+    assert reduced["ReportService"].methods["selectPageResult"].read_tables == []
+
+
 def test_java_lineage_reducer_does_not_treat_serviceimpl_with_extra_calls_as_pure_wrapper(tmp_path):
     from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
 

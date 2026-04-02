@@ -174,15 +174,54 @@ def _serviceimpl_wrapper_targets_mapper(
 ) -> bool:
     """Return whether a ServiceImpl wrapper method should bridge to the mapper."""
 
-    if mapper_module is None or method_name not in mapper_module.methods:
+    if mapper_module is None:
         return False
 
     method = module.methods.get(method_name)
     if method is None:
         return False
 
-    allowed_calls = {"getBaseMapper", method_name}
-    return not method.statement_ids and "getBaseMapper" in method.calls and set(method.calls).issubset(allowed_calls)
+    if method.statement_ids or "getBaseMapper" not in method.calls:
+        return False
+    if method_name not in mapper_module.methods:
+        return False
+    if not set(method.calls).issubset({"getBaseMapper", method_name}):
+        return False
+    return True
+
+
+def _serviceimpl_crud_bridge_mapper_type(
+    module: JavaModuleParseResult,
+    method: JavaMethodFact | None,
+) -> str | None:
+    """Return the mapper module bridged by a getter-style ServiceImpl CRUD wrapper."""
+
+    if method is None or method.statement_ids:
+        return None
+
+    mapper_type = _mapper_type_from_service_impl(module)
+    if mapper_type is None:
+        return None
+
+    if method.method_name in CRUD_METHODS or method.method_name in CRUD_READ_METHODS or method.method_name in CRUD_WRITE_METHODS:
+        return None
+    if "getBaseMapper" not in method.calls:
+        return None
+
+    allowed_calls = {"getBaseMapper", *CRUD_READ_METHODS, *CRUD_WRITE_METHODS}
+    if not method.calls or not set(method.calls).issubset(allowed_calls):
+        return None
+    if not any(call in CRUD_READ_METHODS or call in CRUD_WRITE_METHODS for call in method.calls):
+        return None
+    return mapper_type
+
+
+def _serviceimpl_base_mapper_module(module: JavaModuleParseResult | None) -> str | None:
+    """Return the mapper module name bound through a ServiceImpl superclass when present."""
+
+    if module is None:
+        return None
+    return _mapper_type_from_service_impl(module)
 
 
 def _resolve_call_target(
@@ -210,6 +249,11 @@ def _resolve_call_target(
     declared_type = None if current_module is None else current_module.receiver_types.get(receiver)
 
     candidate_module_names: list[str] = []
+    mapper_type = _serviceimpl_base_mapper_module(current_module)
+    if receiver in {"baseMapper", "getBaseMapper"} and mapper_type is None:
+        return None
+    if declared_type is None and mapper_type is not None and receiver in {"baseMapper", "getBaseMapper"}:
+        candidate_module_names.append(mapper_type)
     if declared_type:
         normalized_type = _normalize_type_name(declared_type)
         impl_candidates = type_index.interface_to_impls.get(normalized_type, [])
@@ -262,6 +306,8 @@ def _classify_unresolved_call(
     current_module = modules_by_name.get(current_module_name)
     declared_type = None if current_module is None else current_module.receiver_types.get(receiver)
     if not declared_type:
+        if receiver in {"baseMapper", "getBaseMapper"}:
+            return "unresolved_receiver_target"
         return "unresolved_receiver_type"
 
     normalized_type = _normalize_type_name(declared_type)
@@ -324,6 +370,7 @@ def _reduce_method_tables(
     visiting.add(key)
     reads: set[str] = set()
     writes: set[str] = set()
+    serviceimpl_crud_bridge = _serviceimpl_crud_bridge_mapper_type(module, method)
 
     statement_map = statements_by_module[module_name]
     for statement_id in method.statement_ids:
@@ -334,7 +381,10 @@ def _reduce_method_tables(
         writes.update(statement.write_tables)
 
     for call in method.calls:
-        target = _resolve_call_target(modules_by_name, type_index, module_name, call)
+        if serviceimpl_crud_bridge is not None and (call in CRUD_READ_METHODS or call in CRUD_WRITE_METHODS):
+            target = (serviceimpl_crud_bridge, call)
+        else:
+            target = _resolve_call_target(modules_by_name, type_index, module_name, call)
         if target is None:
             continue
         target_reads, target_writes = _reduce_method_tables(

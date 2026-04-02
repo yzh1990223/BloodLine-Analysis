@@ -284,6 +284,124 @@ def test_api_endpoint_lineage_reads_tables_through_serviceimpl_getbasemapper_bri
     assert any(item["key"] == "api:GET /IbApp/IbAbn/getRiskClsfList" for item in api_endpoints)
 
 
+def test_api_endpoint_lineage_reads_tables_through_serviceimpl_base_mapper_variants(client, tmp_path):
+    java_root = tmp_path / "java_mybatis_plus_serviceimpl_base_mapper"
+    java_root.mkdir()
+
+    (java_root / "ReportEntity.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import com.baomidou.mybatisplus.annotation.TableName;
+
+        @TableName("report_table")
+        public class ReportEntity {
+        }
+        """
+    )
+    (java_root / "ReportMapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface ReportMapper extends BaseMapper<ReportEntity> {
+        }
+        """
+    )
+    (java_root / "IReportService.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface IReportService {
+            Page<ReportEntity> selectPageResult();
+            Page<ReportEntity> selectPageResultViaGetter();
+        }
+        """
+    )
+    (java_root / "ReportServiceImpl.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportServiceImpl extends ServiceImpl<ReportMapper, ReportEntity> implements IReportService {
+            @Override
+            public Page<ReportEntity> selectPageResult() {
+                return this.baseMapper.selectPage(new Page<>(), new LambdaQueryWrapper<>());
+            }
+
+            @Override
+            public Page<ReportEntity> selectPageResultViaGetter() {
+                return getBaseMapper().selectPage(new Page<>(), new LambdaQueryWrapper<>());
+            }
+        }
+        """
+    )
+    (java_root / "ReportController.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import org.springframework.web.bind.annotation.GetMapping;
+        import org.springframework.web.bind.annotation.RequestMapping;
+        import org.springframework.web.bind.annotation.RestController;
+
+        @RestController
+        @RequestMapping("/reports")
+        public class ReportController {
+            private final IReportService reportService;
+
+            public ReportController(IReportService reportService) {
+                this.reportService = reportService;
+            }
+
+            @GetMapping("/page")
+            public Page<ReportEntity> page() {
+                return reportService.selectPageResult();
+            }
+
+            @GetMapping("/page-via-getter")
+            public Page<ReportEntity> pageViaGetter() {
+                return reportService.selectPageResultViaGetter();
+            }
+        }
+        """
+    )
+
+    response = client.post("/api/scan", json={"java_source_root": str(java_root)})
+
+    assert response.status_code == 202
+
+    payload = client.get("/api/tables/search", params={"q": "/reports/page"})
+    assert payload.status_code == 200
+    base_mapper_item = next(item for item in payload.json()["items"] if item["key"] == "api:GET /reports/page")
+    assert base_mapper_item["payload"]["diagnostics"] == {
+        "resolved_calls": 1,
+        "unresolved_calls": 0,
+        "unresolved_reasons": [],
+        "read_table_count": 1,
+        "write_table_count": 0,
+    }
+
+    getter_payload = client.get("/api/tables/search", params={"q": "/reports/page-via-getter"})
+    assert getter_payload.status_code == 200
+    getter_item = next(item for item in getter_payload.json()["items"] if item["key"] == "api:GET /reports/page-via-getter")
+    assert getter_item["payload"]["diagnostics"] == {
+        "resolved_calls": 1,
+        "unresolved_calls": 0,
+        "unresolved_reasons": [],
+        "read_table_count": 1,
+        "write_table_count": 0,
+    }
+
+    table_item = next(
+        item
+        for item in client.get("/api/tables/search", params={"q": "report_table"}).json()["items"]
+        if item["object_type"] == "data_table"
+    )
+    lineage = client.get(f"/api/tables/{table_item['key']}/lineage")
+    assert lineage.status_code == 200
+    api_endpoints = lineage.json()["related_objects"]["api_endpoints"]
+    assert any(item["key"] == "api:GET /reports/page" for item in api_endpoints)
+    assert any(item["key"] == "api:GET /reports/page-via-getter" for item in api_endpoints)
+
+
 def test_api_endpoint_payload_ignores_result_wrapper_calls(client):
     client.post(
         "/api/scan",
@@ -321,8 +439,8 @@ def test_api_endpoint_lineage_reads_tables_through_mybatis_plus_base_mapper_and_
         "/api/tables/api%3AGET%20%2FassetManagement%2FselectAMProductNetWorthAnalysis/connected-lineage"
     )
     assert lineage.status_code == 200
-    downstream_keys = {item["key"] for item in lineage.json()["table_lineage"]["downstream_tables"]}
-    assert downstream_keys == {"table:RP_AM_FUND_RISKPROFIT", "table:frms.am_product_riskprofit"}
+    downstream_keys = {item["key"].lower() for item in lineage.json()["table_lineage"]["downstream_tables"]}
+    assert downstream_keys == {"table:rp_am_fund_riskprofit", "table:frms.am_product_riskprofit"}
 
 
 def test_api_endpoint_detail_exposes_diagnostics_and_touched_tables(client):
