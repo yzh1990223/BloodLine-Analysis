@@ -14,6 +14,55 @@ LOGGER = logging.getLogger(__name__)
 LINE_CONTINUATION_PATTERN = re.compile(r"\\\s*\n")
 HORIZONTAL_WHITESPACE_PATTERN = re.compile(r"[^\S\n]+")
 MULTI_NEWLINE_PATTERN = re.compile(r"\n{3,}")
+BLOCK_COMMENT_PATTERN = re.compile(r"/\*.*?\*/", re.DOTALL)
+WHERE_CONJUNCTION_PATTERN = re.compile(r"\bWHERE\s+(AND|OR)\b", re.IGNORECASE)
+LIKE_ORACLE_PLACEHOLDER_PATTERN = re.compile(
+    r"(?i)\bLIKE\s+'%'\s*\|\|\s*(?:0|placeholder)\s*\|\|\s*'%'"
+)
+LIKE_CONCAT_PLACEHOLDER_PATTERN = re.compile(
+    r"(?i)\bLIKE\s+CONCAT\s*\(\s*'%'\s*,\s*(?:0|placeholder)\s*,\s*'%'\s*\)"
+)
+IN_BARE_PLACEHOLDER_PATTERN = re.compile(r"(?i)\bIN\s+(0|placeholder)\s*\)")
+
+
+def _strip_sql_line_comments(sql: str) -> str:
+    """Remove `--` comments while preserving text inside quoted strings."""
+
+    result: list[str] = []
+    index = 0
+    in_single_quote = False
+    in_double_quote = False
+
+    while index < len(sql):
+        current = sql[index]
+        nxt = sql[index + 1] if index + 1 < len(sql) else ""
+
+        if current == "'" and not in_double_quote:
+            if in_single_quote and nxt == "'":
+                result.append(current)
+                result.append(nxt)
+                index += 2
+                continue
+            in_single_quote = not in_single_quote
+            result.append(current)
+            index += 1
+            continue
+
+        if current == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+            result.append(current)
+            index += 1
+            continue
+
+        if not in_single_quote and not in_double_quote and current == "-" and nxt == "-":
+            while index < len(sql) and sql[index] != "\n":
+                index += 1
+            continue
+
+        result.append(current)
+        index += 1
+
+    return "".join(result)
 
 
 def _normalize_sql_fragment(sql: str) -> str:
@@ -21,6 +70,12 @@ def _normalize_sql_fragment(sql: str) -> str:
 
     normalized = LINE_CONTINUATION_PATTERN.sub(" ", sql)
     normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = BLOCK_COMMENT_PATTERN.sub(" ", normalized)
+    normalized = _strip_sql_line_comments(normalized)
+    normalized = LIKE_ORACLE_PLACEHOLDER_PATTERN.sub("LIKE 'placeholder'", normalized)
+    normalized = LIKE_CONCAT_PLACEHOLDER_PATTERN.sub("LIKE 'placeholder'", normalized)
+    normalized = IN_BARE_PLACEHOLDER_PATTERN.sub(r"IN ( \1 )", normalized)
+    normalized = WHERE_CONJUNCTION_PATTERN.sub("WHERE", normalized)
     normalized = HORIZONTAL_WHITESPACE_PATTERN.sub(" ", normalized)
     normalized = "\n".join(line.strip() for line in normalized.split("\n"))
     normalized = MULTI_NEWLINE_PATTERN.sub("\n\n", normalized)

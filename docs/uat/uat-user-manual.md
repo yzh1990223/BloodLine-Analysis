@@ -36,6 +36,8 @@
 - 当前仍不支持：
   - 高动态 SQL
   - 复杂 MyBatis 动态标签的完整展开
+  - Oracle 特殊语法的完整解析，例如 `{call ...}`、`INSERT ALL`、`MERGE INTO ... USING (...)`
+  - 复杂 `CASE`、复杂子查询模板化展开、多重 `ORDER BY` 组合的完整解析
   - RPC / Feign / OpenAPI 同步
   - 字段级血缘
 

@@ -38,6 +38,11 @@
 - 扫描是同步执行的，每次重新扫描都会先清空旧图，再全量重建
 - 动态 SQL、自定义 Step、复杂脚本类处理仍然是部分覆盖
 - 高动态 MyBatis XML、ORM 自动生成 SQL 和字段级链路仍未覆盖
+- Oracle 特殊语法当前不做完整支持，例如：
+  - `{call ...}`
+  - `INSERT ALL`
+  - `MERGE INTO ... USING (...)`
+- 复杂 `CASE`、复杂子查询模板化展开、多重 `ORDER BY` 组合当前不保证完整解析
 - HTTP API 节点当前仅支持 Spring MVC 常见映射注解，不支持 RPC / Feign / OpenAPI 同步
 - MySQL metadata 当前读取的是“最新版本”，还未做独立缓存式同步流程
 

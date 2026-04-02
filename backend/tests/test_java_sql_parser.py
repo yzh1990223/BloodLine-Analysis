@@ -56,11 +56,75 @@ def test_extract_tables_preserves_sql_after_leading_line_comments():
     assert writes == set()
 
 
+def test_extract_tables_strips_inline_sql_comments_inside_select_list():
+    reads, writes = extract_tables(
+        """
+        select tt.* from (
+            select a.CLIENT_ID as clientId --客户ID
+                 , a.SYSTEM_ID as systemId --系统ID
+            from RM_CLIENT_INFO a
+        ) tt
+        """
+    )
+
+    assert reads == {"RM_CLIENT_INFO"}
+    assert writes == set()
+
+
+def test_extract_tables_strips_inline_comment_after_string_literal():
+    reads, writes = extract_tables(
+        """
+        select * from RM_PB_CLIENT_INDEN t
+        where PBTYPE2 = 'INTBL'--同业互借
+          and t.counterpartyname = '浦成QDII普通A'
+        """
+    )
+
+    assert reads == {"RM_PB_CLIENT_INDEN"}
+    assert writes == set()
+
+
 def test_extract_tables_normalizes_aliased_reads():
     reads, writes = extract_tables(
         "select * from ods.orders o join dm.dim_user u on o.user_id = u.id"
     )
     assert reads == {"ods.orders", "dm.dim_user"}
+    assert writes == set()
+
+
+def test_extract_tables_normalizes_where_and_after_dynamic_fragment_removal():
+    reads, writes = extract_tables(
+        "select * from RM_CALL_MARGIN_PAY_LOG t WHERE AND t.CLIENT_NAME like 'abc' AND t.SJRQ = 0"
+    )
+
+    assert reads == {"RM_CALL_MARGIN_PAY_LOG"}
+    assert writes == set()
+
+
+def test_extract_tables_normalizes_oracle_like_placeholder_concatenation():
+    reads, writes = extract_tables(
+        "select * from WMS_INSTITUTIONAL_INFO where INST_NAME like '%' || 0 || '%'"
+    )
+
+    assert reads == {"WMS_INSTITUTIONAL_INFO"}
+    assert writes == set()
+
+
+def test_extract_tables_normalizes_concat_like_placeholder():
+    reads, writes = extract_tables(
+        "select * from FRMS.RP_WMS_INSTITUTIONAL_INFO where INST_NAME like CONCAT('%', 0, '%')"
+    )
+
+    assert reads == {"FRMS.RP_WMS_INSTITUTIONAL_INFO"}
+    assert writes == set()
+
+
+def test_extract_tables_normalizes_in_placeholder_without_parentheses():
+    reads, writes = extract_tables(
+        "select * from RM_CLIENT_AGREEMENT where CLIENT_UNICODE in 0 ) order by AGREEMENT_ID"
+    )
+
+    assert reads == {"RM_CLIENT_AGREEMENT"}
     assert writes == set()
 
 
