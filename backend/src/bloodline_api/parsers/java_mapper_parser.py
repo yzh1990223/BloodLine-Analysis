@@ -43,16 +43,32 @@ class AnnotatedMethodSql:
     end_offset: int
 
 
+def _decode_java_string_literal(fragment: str) -> str:
+    """Decode common Java string escapes into parser-friendly text."""
+
+    decoded = bytes(fragment, "utf-8").decode("unicode_escape")
+    decoded = (
+        decoded.replace("\\n", "\n")
+        .replace("\\t", "\t")
+        .replace("\\r", "\r")
+        .replace('\\"', '"')
+        .replace("\\\\", "\\")
+    )
+    return decoded
+
+
 def extract_annotated_method_sql(source: str) -> list[AnnotatedMethodSql]:
     """Extract stable MyBatis-style annotation SQL bound to method names."""
 
     return [
         AnnotatedMethodSql(
             method_name=match.group(3),
-            sql=" ".join(
-                part.strip()
-                for part in ANNOTATED_SQL_STRING_PATTERN.findall(match.group(2))
-                if part.strip()
+            sql=_normalize_mapper_sql(
+                " ".join(
+                    _decode_java_string_literal(part).strip()
+                    for part in ANNOTATED_SQL_STRING_PATTERN.findall(match.group(2))
+                    if part.strip()
+                )
             ),
             start_offset=match.start(),
             end_offset=match.end(),
@@ -60,6 +76,15 @@ def extract_annotated_method_sql(source: str) -> list[AnnotatedMethodSql]:
         for match in ANNOTATED_METHOD_PATTERN.finditer(source)
         if ANNOTATED_SQL_STRING_PATTERN.findall(match.group(2))
     ]
+
+
+def _normalize_mapper_sql(sql_fragment: str) -> str:
+    """Normalize mapper SQL text that already has tags stripped."""
+
+    normalized = MYBATIS_PARAM_PATTERN.sub("0", sql_fragment)
+    normalized = MYBATIS_TEXT_PARAM_PATTERN.sub("placeholder", normalized)
+    normalized = " ".join(normalized.split()).strip()
+    return normalized
 
 
 def _normalize_xml_sql(sql_fragment: str) -> str:
