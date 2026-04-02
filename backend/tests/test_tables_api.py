@@ -189,6 +189,25 @@ def test_scan_pipeline_reduces_api_endpoint_through_unique_interface_impl_bindin
     assert any(item["key"] == "api:GET /api/bound-report/summary" for item in api_endpoints)
 
 
+def test_scan_pipeline_reduces_api_endpoint_through_indirect_interface_impl_binding(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_api_indirect_impl_binding"},
+    )
+
+    assert response.status_code == 202
+
+    search_response = client.get("/api/tables/search", params={"q": "/api/indirect-report/summary"})
+    assert search_response.status_code == 200
+    search_items = search_response.json()["items"]
+    assert any(item["key"] == "api:GET /api/indirect-report/summary" for item in search_items)
+
+    lineage = client.get("/api/tables/table:dm.user_order_summary/lineage")
+    assert lineage.status_code == 200
+    api_endpoints = lineage.json()["related_objects"]["api_endpoints"]
+    assert any(item["key"] == "api:GET /api/indirect-report/summary" for item in api_endpoints)
+
+
 def test_api_endpoint_lineage_reads_tables_through_service_impl_and_mapper(client):
     response = client.post(
         "/api/scan",

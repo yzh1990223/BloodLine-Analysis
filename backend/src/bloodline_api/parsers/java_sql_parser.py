@@ -82,6 +82,8 @@ class JavaSqlParser:
         extended_type = parse_extended_type(source)
         method_call_map = build_method_call_map(method_scopes)
         parse_failures: list[JavaSqlParseFailure] = []
+        annotated_sql = extract_annotated_method_sql(source)
+        annotation_spans = [(item.start_offset, item.end_offset) for item in annotated_sql]
         methods = {
             scope.method_name: JavaMethodFact(
                 method_name=scope.method_name,
@@ -92,6 +94,8 @@ class JavaSqlParser:
         }
 
         for index, match in enumerate(SQL_STRING_PATTERN.finditer(source)):
+            if any(start <= match.start() <= end for start, end in annotation_spans):
+                continue
             sql = match.group(1).strip()
             if not SQL_START_PATTERN.match(sql):
                 continue
@@ -125,7 +129,7 @@ class JavaSqlParser:
             writes.update(sql_writes)
 
         next_statement_index = len(statements)
-        for annotated in [*extract_annotated_method_sql(source), *extract_xml_method_sql(path)]:
+        for annotated in [*annotated_sql, *extract_xml_method_sql(path)]:
             statement_id = f"sql_{next_statement_index}"
             next_statement_index += 1
             sql_reads, sql_writes, parse_error = extract_tables_with_error(annotated.sql)

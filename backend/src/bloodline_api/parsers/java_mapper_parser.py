@@ -11,9 +11,13 @@ from bloodline_api.connectors.java_source_reader import read_java_source
 
 
 ANNOTATED_METHOD_PATTERN = re.compile(
-    r"@(Select|Insert|Update|Delete)\(\"((?:\\.|[^\"\\])*)\"\)\s+[\w<>\[\]\.]+\s+(\w+)\s*\(",
-    re.MULTILINE,
+    r"@(Select|Insert|Update|Delete)\s*"
+    r"\(\s*(?:value\s*=\s*)?"
+    r"(.+?)"
+    r"\)\s+[\w<>\[\]\.]+\s+(\w+)\s*\(",
+    re.MULTILINE | re.DOTALL,
 )
+ANNOTATED_SQL_STRING_PATTERN = re.compile(r"\"((?:\\.|[^\"\\])*)\"")
 XML_METHOD_PATTERN = re.compile(
     r"<(select|insert|update|delete)\s+[^>]*id=\"([^\"]+)\"[^>]*>(.*?)</\1>",
     re.IGNORECASE | re.DOTALL,
@@ -36,6 +40,7 @@ class AnnotatedMethodSql:
     method_name: str
     sql: str
     start_offset: int
+    end_offset: int
 
 
 def extract_annotated_method_sql(source: str) -> list[AnnotatedMethodSql]:
@@ -44,10 +49,16 @@ def extract_annotated_method_sql(source: str) -> list[AnnotatedMethodSql]:
     return [
         AnnotatedMethodSql(
             method_name=match.group(3),
-            sql=match.group(2).strip(),
+            sql=" ".join(
+                part.strip()
+                for part in ANNOTATED_SQL_STRING_PATTERN.findall(match.group(2))
+                if part.strip()
+            ),
             start_offset=match.start(),
+            end_offset=match.end(),
         )
         for match in ANNOTATED_METHOD_PATTERN.finditer(source)
+        if ANNOTATED_SQL_STRING_PATTERN.findall(match.group(2))
     ]
 
 
@@ -91,6 +102,7 @@ def extract_xml_method_sql(java_path: Path) -> list[AnnotatedMethodSql]:
                 method_name=match.group(2),
                 sql=sql,
                 start_offset=match.start(),
+                end_offset=match.end(),
             )
         )
     return statements
