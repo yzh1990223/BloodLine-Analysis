@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 
 from sqlglot import exp, parse_one
 from sqlglot.errors import ParseError
@@ -10,6 +11,15 @@ from sqlglot.errors import TokenError
 
 
 LOGGER = logging.getLogger(__name__)
+LINE_CONTINUATION_PATTERN = re.compile(r"\\\s*\n")
+
+
+def _normalize_sql_fragment(sql: str) -> str:
+    """Normalize obvious transport/concatenation artifacts before parsing."""
+
+    normalized = LINE_CONTINUATION_PATTERN.sub(" ", sql)
+    normalized = " ".join(normalized.split())
+    return normalized
 
 
 def _table_name(table: exp.Table) -> str:
@@ -42,6 +52,7 @@ def _cte_aliases(expression: exp.Expression) -> set[str]:
 def extract_tables_with_error(sql: str) -> tuple[set[str], set[str], str | None]:
     """Split SQL table usage into read tables and write tables, preserving parse errors."""
 
+    sql = _normalize_sql_fragment(sql)
     try:
         expression = parse_one(sql, read="mysql")
     except (ParseError, TokenError) as exc:

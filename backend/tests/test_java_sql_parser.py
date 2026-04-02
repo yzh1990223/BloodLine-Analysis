@@ -32,6 +32,15 @@ def test_java_parser_decodes_escaped_newlines_in_plain_sql_strings():
     assert result.methods["loadOrders"].statement_ids == ["sql_0"]
 
 
+def test_extract_tables_tolerates_backslash_line_continuations():
+    reads, writes = extract_tables(
+        "select * from ods.orders \\\nwhere id = 1"
+    )
+
+    assert reads == {"ods.orders"}
+    assert writes == set()
+
+
 def test_extract_tables_normalizes_aliased_reads():
     reads, writes = extract_tables(
         "select * from ods.orders o join dm.dim_user u on o.user_id = u.id"
@@ -47,6 +56,20 @@ def test_extract_tables_returns_empty_for_unstable_dynamic_mybatis_sql():
 
     assert reads == set()
     assert writes == set()
+
+
+def test_extract_tables_handles_plain_delete_statements():
+    reads, writes = extract_tables("delete from dm.cleanup_target where id = 1")
+
+    assert reads == set()
+    assert writes == {"dm.cleanup_target"}
+
+
+def test_extract_tables_handles_plain_update_statements():
+    reads, writes = extract_tables("update dm.cleanup_target set status = 1 where id = 1")
+
+    assert reads == set()
+    assert writes == {"dm.cleanup_target"}
 
 
 def test_extract_tables_excludes_cte_aliases_but_keeps_underlying_tables():
