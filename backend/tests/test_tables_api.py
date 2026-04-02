@@ -300,6 +300,31 @@ def test_api_endpoint_payload_ignores_result_wrapper_calls(client):
     assert api_item["payload"]["diagnostics"]["unresolved_reasons"] == []
 
 
+def test_api_endpoint_lineage_reads_tables_through_mybatis_plus_base_mapper_and_table_name(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_mybatis_plus_crud"},
+    )
+
+    assert response.status_code == 202
+
+    payload = client.get("/api/tables/search", params={"q": "/assetManagement/selectAMProductNetWorthAnalysis"})
+    assert payload.status_code == 200
+    api_item = next(
+        item
+        for item in payload.json()["items"]
+        if item["key"] == "api:GET /assetManagement/selectAMProductNetWorthAnalysis"
+    )
+    assert api_item["payload"]["diagnostics"]["read_table_count"] == 2
+
+    lineage = client.get(
+        "/api/tables/api%3AGET%20%2FassetManagement%2FselectAMProductNetWorthAnalysis/connected-lineage"
+    )
+    assert lineage.status_code == 200
+    downstream_keys = {item["key"] for item in lineage.json()["table_lineage"]["downstream_tables"]}
+    assert downstream_keys == {"table:RP_AM_FUND_RISKPROFIT", "table:frms.am_product_riskprofit"}
+
+
 def test_api_endpoint_detail_exposes_diagnostics_and_touched_tables(client):
     client.post(
         "/api/scan",
