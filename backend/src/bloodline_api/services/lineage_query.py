@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,23 @@ from bloodline_api.services.graph_builder import build_table_flows
 BACKEND_ROOT = Path(__file__).resolve().parents[3]
 
 DEFAULT_OBJECT_TYPE = "data_table"
+CRUD_READ_METHODS = {
+    "selectPage",
+    "selectList",
+    "selectOne",
+    "selectById",
+    "selectBatchIds",
+    "selectMaps",
+    "selectCount",
+}
+CRUD_WRITE_METHODS = {
+    "insert",
+    "updateById",
+    "update",
+    "deleteById",
+    "delete",
+    "deleteBatchIds",
+}
 
 
 def _resolve_input_path(value: str) -> Path:
@@ -49,6 +67,48 @@ def _normalized_input_values(values: list[str] | None, single_value: str | None)
         if item not in deduped:
             deduped.append(item)
     return deduped
+
+
+def _normalize_java_type_name(type_ref: str) -> str:
+    """Normalize one Java type reference to its simple outer type name."""
+
+    normalized = re.sub(r"<.*>$", "", type_ref.strip())
+    normalized = re.sub(r"\[\]$", "", normalized)
+    return normalized.split(".")[-1]
+
+
+def _mybatis_plus_missing_evidence_reason(
+    source_module: Any,
+    call: str,
+    modules_by_name: dict[str, Any],
+) -> str | None:
+    """Return the MyBatis-Plus-specific missing-evidence label for one receiver-qualified CRUD call."""
+
+    if "." not in call:
+        return None
+
+    receiver, callee = call.split(".", 1)
+    if callee not in CRUD_READ_METHODS and callee not in CRUD_WRITE_METHODS:
+        return None
+
+    declared_type = source_module.receiver_types.get(receiver)
+    if declared_type is None:
+        return None
+
+    mapper_module_name = _normalize_java_type_name(declared_type)
+
+    mapper_module = modules_by_name.get(mapper_module_name)
+    if mapper_module is None:
+        return "crud_method_without_table_binding"
+
+    if not mapper_module.basemapper_entity:
+        return "mapper_without_basemapper_entity"
+
+    entity_module = modules_by_name.get(mapper_module.basemapper_entity)
+    if entity_module is None or not entity_module.table_name:
+        return "entity_without_table_name"
+
+    return None
 
 
 def _resolve_repo_paths(values: list[str]) -> list[Path]:
@@ -802,6 +862,7 @@ class LineageQueryService:
                 reduced_java_results,
                 java_results,
             )
+            java_results_by_name = {java_result.module_name: java_result for java_result in java_results}
             for java_result in java_results:
                 reduced_java_result = reduced_java_results[java_result.module_name]
                 java_node = self._get_or_create_node(
@@ -860,13 +921,29 @@ class LineageQueryService:
                 api_payload["object_type"] = "api_endpoint"
                 api_payload["http_method"] = endpoint.http_method
                 api_payload["route"] = endpoint.route
-                api_payload["diagnostics"] = {
+                diagnostics = {
                     "resolved_calls": endpoint.resolved_call_count,
                     "unresolved_calls": endpoint.unresolved_call_count,
-                    "unresolved_reasons": endpoint.unresolved_reasons,
+                    "unresolved_reasons": [dict(reason) for reason in endpoint.unresolved_reasons],
                     "read_table_count": len(endpoint.read_tables),
                     "write_table_count": len(endpoint.write_tables),
                 }
+                source_module = java_results_by_name.get(endpoint.controller_module_name)
+                if source_module is not None:
+                    updated_reasons: list[dict[str, str]] = []
+                    for reason in diagnostics["unresolved_reasons"]:
+                        mapped_reason = _mybatis_plus_missing_evidence_reason(
+                            source_module,
+                            reason["call"],
+                            java_results_by_name,
+                        )
+                        if mapped_reason is None:
+                            updated_reasons.append(reason)
+                            continue
+                        updated_reasons.append({"call": reason["call"], "reason": mapped_reason})
+                    diagnostics["unresolved_reasons"] = updated_reasons
+
+                api_payload["diagnostics"] = diagnostics
                 api_node.payload = api_payload
                 db.flush()
                 for table_name in endpoint.read_tables:

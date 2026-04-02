@@ -443,6 +443,110 @@ def test_api_endpoint_lineage_reads_tables_through_mybatis_plus_base_mapper_and_
     assert downstream_keys == {"table:rp_am_fund_riskprofit", "table:frms.am_product_riskprofit"}
 
 
+def test_api_endpoint_payload_reports_missing_mybatis_plus_table_name_evidence(client, tmp_path):
+    java_root = tmp_path / "java_mybatis_plus_missing_table_name"
+    java_root.mkdir()
+
+    (java_root / "ReportEntity.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportEntity {
+        }
+        """
+    )
+    (java_root / "ReportMapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface ReportMapper extends BaseMapper<ReportEntity> {
+        }
+        """
+    )
+    (java_root / "Page.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class Page<T> {
+        }
+        """
+    )
+    (java_root / "LambdaQueryWrapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class LambdaQueryWrapper<T> {
+        }
+        """
+    )
+    (java_root / "BaseMapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface BaseMapper<T> {
+            Page<T> selectPage(Page<T> page, LambdaQueryWrapper<T> queryWrapper);
+        }
+        """
+    )
+    (java_root / "ReportController.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import org.springframework.web.bind.annotation.GetMapping;
+        import org.springframework.web.bind.annotation.RestController;
+
+        @RestController
+        public class ReportController {
+            private final ReportMapper reportMapper = new ReportMapper();
+
+            @GetMapping("/reports/page")
+            public Page<ReportEntity> page() {
+                other.selectPage(new Page<>(), new LambdaQueryWrapper<>());
+                return null;
+            }
+
+            @GetMapping("/reports/page-via-mapper")
+            public Page<ReportEntity> pageViaMapper() {
+                reportMapper.selectPage(new Page<>(), new LambdaQueryWrapper<>());
+                return null;
+            }
+        }
+        """
+    )
+
+    response = client.post("/api/scan", json={"java_source_root": str(java_root)})
+
+    assert response.status_code == 202
+
+    payload = client.get("/api/tables/search", params={"q": "/reports/page"})
+    assert payload.status_code == 200
+    api_item = next(item for item in payload.json()["items"] if item["key"] == "api:GET /reports/page")
+    assert api_item["payload"]["diagnostics"] == {
+        "resolved_calls": 0,
+        "unresolved_calls": 1,
+        "unresolved_reasons": [
+            {"call": "other.selectPage", "reason": "unresolved_receiver_type"},
+        ],
+        "read_table_count": 0,
+        "write_table_count": 0,
+    }
+
+    mapper_payload = client.get("/api/tables/search", params={"q": "/reports/page-via-mapper"})
+    assert mapper_payload.status_code == 200
+    mapper_item = next(
+        item for item in mapper_payload.json()["items"] if item["key"] == "api:GET /reports/page-via-mapper"
+    )
+    assert mapper_item["payload"]["diagnostics"] == {
+        "resolved_calls": 0,
+        "unresolved_calls": 1,
+        "unresolved_reasons": [
+            {"call": "reportMapper.selectPage", "reason": "entity_without_table_name"},
+        ],
+        "read_table_count": 0,
+        "write_table_count": 0,
+    }
+
+
 def test_api_endpoint_detail_exposes_diagnostics_and_touched_tables(client):
     client.post(
         "/api/scan",

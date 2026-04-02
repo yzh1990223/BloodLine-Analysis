@@ -31,11 +31,14 @@
   - 静态 SQL 字符串
   - 最小 `Service -> Repository -> DAO` 调用链
   - 部分 Spring MVC HTTP 接口穿透到 `api_endpoint` 节点
+  - `api_endpoint` 是一等对象类型，可直接在搜索和详情页查看
   - MyBatis 注解 SQL
   - 同 stem XML Mapper 的最小静态 SQL
+  - `BaseMapper<Entity>` + `@TableName` 的 MyBatis-Plus CRUD 血缘
 - 当前仍不支持：
   - 高动态 SQL
   - 复杂 MyBatis 动态标签的完整展开
+  - 缺少 `@TableName` 时，不会猜测 MyBatis-Plus CRUD 对应的数据表
   - Oracle 特殊语法的完整解析，例如 `{call ...}`、`INSERT ALL`、`MERGE INTO ... USING (...)`
   - 复杂 `CASE`、复杂子查询模板化展开、多重 `ORDER BY` 组合的完整解析
   - RPC / Feign / OpenAPI 同步
@@ -56,6 +59,7 @@ http://your-uat-domain/
 - 闭环分析：`/analysis/cycles`
 - 失败汇总：`/scan-failures`
 - 对象详情：`/tables/{table_key}`
+- API endpoint 详情：`/tables/{api_endpoint_key}`
 - 影响分析：`/tables/{table_key}/impact`
 
 ## 4. 首页功能说明
@@ -157,21 +161,26 @@ http://your-uat-domain/
 
 对象详情页会展示：
 
-- 当前对象名称与类型
-- metadata 摘要
-  - 数据库
-  - 对象种类
-  - 字段数
-  - 注释（如有）
-  - 视图解析状态与失败原因（仅表视图对象）
-- 直接上游对象
-- 直接下游对象
-- 完整链路图
-- 关联对象
-  - 作业
-  - Java 模块
-  - API 接口
-  - 转换
+- 表 / 视图详情页会展示：
+  - 当前对象名称与类型
+  - metadata 摘要
+    - 数据库
+    - 对象种类
+    - 字段数
+    - 注释（如有）
+    - 视图解析状态与失败原因（仅表视图对象）
+  - 直接上游对象
+  - 直接下游对象
+  - 完整链路图
+  - 关联对象
+    - 作业
+    - Java 模块
+    - API 接口
+    - 转换
+- API endpoint 详情页会展示：
+  - 诊断信息
+  - 实际触达的表
+  - 不使用表 / 视图详情页那套 metadata 与关联对象结构
 
 页面内按钮：
 

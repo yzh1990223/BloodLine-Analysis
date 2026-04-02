@@ -8,9 +8,11 @@
 - 解析 Java 源码中的静态 SQL，识别读写表关系
 - 支持 Java 方法级事实与最小调用图归并
 - 支持把部分 Spring MVC HTTP 接口继续穿透为 `api_endpoint` 终点节点
+- `api_endpoint` 是一等对象类型，可直接在搜索、详情和链路图中查看
 - 支持一部分 MyBatis 场景：
   - 注解 SQL
   - 同 stem XML Mapper 的最小静态 SQL
+  - `BaseMapper<Entity>` + `@TableName` 的 CRUD 血缘推断
 - 支持在扫描时实时接入 MySQL `information_schema` 元数据
 - 支持按库白名单读取 metadata，并将表 / 视图归并到统一对象图
 - 使用独立元数据表 `object_metadata` / `object_metadata_columns` 保存最新 metadata
@@ -38,6 +40,7 @@
 - 扫描是同步执行的，每次重新扫描都会先清空旧图，再全量重建
 - 动态 SQL、自定义 Step、复杂脚本类处理仍然是部分覆盖
 - 高动态 MyBatis XML、ORM 自动生成 SQL 和字段级链路仍未覆盖
+- 不会在缺少 `@TableName` 的情况下猜测 MyBatis-Plus CRUD 对应的数据表
 - Oracle 特殊语法当前不做完整支持，例如：
   - `{call ...}`
   - `INSERT ALL`
@@ -159,8 +162,9 @@ curl -X POST http://127.0.0.1:8000/api/scan \
 - `/objects`
   - 按类型浏览对象
 - `/tables/:tableKey`
-  - 详情页、直接上下游、完整链路图、API 终点节点、关联对象高亮、元数据摘要
+  - 表 / 视图详情页会展示元数据摘要、直接上下游、完整链路图、关联对象高亮
   - 视图对象会展示 `VIEW_DEFINITION` 解析状态与失败原因
+  - API endpoint 详情页会展示诊断信息和实际触达的表，不使用表 / 视图那套元数据与关联对象结构
 - `/tables/:tableKey/impact`
   - 最多 3 跳影响分析
 - `/analysis/cycles`
