@@ -57,6 +57,12 @@ def _decode_java_string_literal(fragment: str) -> str:
     return decoded
 
 
+def decode_java_string_literal(fragment: str) -> str:
+    """Shared public wrapper for decoding Java string literal content."""
+
+    return _decode_java_string_literal(fragment)
+
+
 def extract_annotated_method_sql(source: str) -> list[AnnotatedMethodSql]:
     """Extract stable MyBatis-style annotation SQL bound to method names."""
 

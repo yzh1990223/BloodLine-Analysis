@@ -23,6 +23,15 @@ def test_java_sql_parser_extracts_reads_and_writes():
     ]
 
 
+def test_java_parser_decodes_escaped_newlines_in_plain_sql_strings():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_string_escaped_model/EscapedSqlDao.java"))
+
+    assert result.read_tables == ["ods.orders"]
+    assert result.write_tables == []
+    assert result.methods["loadOrders"].statement_ids == ["sql_0"]
+
+
 def test_extract_tables_normalizes_aliased_reads():
     reads, writes = extract_tables(
         "select * from ods.orders o join dm.dim_user u on o.user_id = u.id"

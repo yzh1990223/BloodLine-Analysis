@@ -9,6 +9,7 @@ from pathlib import Path
 from bloodline_api.connectors.java_source_reader import read_java_source
 from bloodline_api.parsers.java_call_graph import build_method_call_map
 from bloodline_api.parsers.java_mapper_parser import extract_annotated_method_sql
+from bloodline_api.parsers.java_mapper_parser import decode_java_string_literal
 from bloodline_api.parsers.java_mapper_parser import extract_xml_method_sql
 from bloodline_api.parsers.java_symbol_parser import parse_extended_type
 from bloodline_api.parsers.java_symbol_parser import parse_field_types
@@ -96,7 +97,7 @@ class JavaSqlParser:
         for index, match in enumerate(SQL_STRING_PATTERN.finditer(source)):
             if any(start <= match.start() <= end for start, end in annotation_spans):
                 continue
-            sql = match.group(1).strip()
+            sql = decode_java_string_literal(match.group(1)).strip()
             if not SQL_START_PATTERN.match(sql):
                 continue
             line_prefix = source[max(0, source.rfind("\n", 0, match.start()) + 1) : match.start()]
