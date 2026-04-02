@@ -41,6 +41,21 @@ def test_extract_tables_tolerates_backslash_line_continuations():
     assert writes == set()
 
 
+def test_extract_tables_preserves_sql_after_leading_line_comments():
+    reads, writes = extract_tables(
+        """
+        --select *  from V_CICC_BIGCOMPANY_BASIC T WHERE  dpt_count>0
+        --and t.industry is null
+        SELECT A.CLIENT_ID as COMPANY_ID,A.CLIENT_NAME as COMPANY_FULL_NAME
+          FROM DC_CLIENT_ORIGINAL A
+         WHERE A.ORGAN_FLAG = '2'
+        """
+    )
+
+    assert reads == {"DC_CLIENT_ORIGINAL"}
+    assert writes == set()
+
+
 def test_extract_tables_normalizes_aliased_reads():
     reads, writes = extract_tables(
         "select * from ods.orders o join dm.dim_user u on o.user_id = u.id"

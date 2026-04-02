@@ -12,13 +12,19 @@ from sqlglot.errors import TokenError
 
 LOGGER = logging.getLogger(__name__)
 LINE_CONTINUATION_PATTERN = re.compile(r"\\\s*\n")
+HORIZONTAL_WHITESPACE_PATTERN = re.compile(r"[^\S\n]+")
+MULTI_NEWLINE_PATTERN = re.compile(r"\n{3,}")
 
 
 def _normalize_sql_fragment(sql: str) -> str:
     """Normalize obvious transport/concatenation artifacts before parsing."""
 
     normalized = LINE_CONTINUATION_PATTERN.sub(" ", sql)
-    normalized = " ".join(normalized.split())
+    normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
+    normalized = HORIZONTAL_WHITESPACE_PATTERN.sub(" ", normalized)
+    normalized = "\n".join(line.strip() for line in normalized.split("\n"))
+    normalized = MULTI_NEWLINE_PATTERN.sub("\n\n", normalized)
+    normalized = normalized.strip()
     return normalized
 
 
