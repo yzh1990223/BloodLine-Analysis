@@ -30,6 +30,25 @@ interface BuildOverviewGraphOptions {
   edgeType?: Edge["type"];
 }
 
+function isApiEndpoint(objectType: string | undefined) {
+  return objectType === "api_endpoint";
+}
+
+function normalizeEdgeDirection(
+  sourceKey: string,
+  targetKey: string,
+  objectTypes: Map<string, string>,
+): [string, string] {
+  const sourceType = objectTypes.get(sourceKey);
+  const targetType = objectTypes.get(targetKey);
+
+  if (isApiEndpoint(sourceType) && !isApiEndpoint(targetType)) {
+    return [targetKey, sourceKey];
+  }
+
+  return [sourceKey, targetKey];
+}
+
 function classifyNodeRole(
   key: string,
   incomingCount: Map<string, number>,
@@ -115,10 +134,15 @@ export function buildOverviewGraph(
       displayNames.set(downstream.key, downstream.display_name ?? downstream.name);
       objectTypes.set(downstream.key, downstream.object_type ?? "data_table");
       if (lineage.table) {
-        const edgeId = `${lineage.table.key}->${downstream.key}`;
+        const [normalizedSource, normalizedTarget] = normalizeEdgeDirection(
+          lineage.table.key,
+          downstream.key,
+          objectTypes,
+        );
+        const edgeId = `${normalizedSource}->${normalizedTarget}`;
         edgePairs.add(edgeId);
-        outgoingCount.set(lineage.table.key, (outgoingCount.get(lineage.table.key) ?? 0) + 1);
-        incomingCount.set(downstream.key, (incomingCount.get(downstream.key) ?? 0) + 1);
+        outgoingCount.set(normalizedSource, (outgoingCount.get(normalizedSource) ?? 0) + 1);
+        incomingCount.set(normalizedTarget, (incomingCount.get(normalizedTarget) ?? 0) + 1);
       }
     }
   }
@@ -200,6 +224,7 @@ export function buildOverviewGraph(
   const targetHandleCursor = new Map<string, number>();
   const edges: Edge[] = sortedEdgePairs.map((pair) => {
       const [source, target] = pair.split("->");
+      const isApiEdge = isApiEndpoint(objectTypes.get(source)) || isApiEndpoint(objectTypes.get(target));
       const sourceIndex = sourceHandleCursor.get(source) ?? 0;
       const targetIndex = targetHandleCursor.get(target) ?? 0;
       sourceHandleCursor.set(source, sourceIndex + 1);
@@ -213,15 +238,18 @@ export function buildOverviewGraph(
         animated: false,
         type: edgeType,
         zIndex: 0,
-        markerEnd: {
-          type: MarkerType.ArrowClosed,
-          width: 22,
-          height: 22,
-          color: edgeColor,
-        },
+        markerEnd: isApiEdge
+          ? undefined
+          : {
+              type: MarkerType.ArrowClosed,
+              width: 22,
+              height: 22,
+              color: edgeColor,
+            },
         style: {
           stroke: edgeColor,
           strokeWidth: edgeWidth,
+          strokeDasharray: isApiEdge ? "8 6" : undefined,
         },
       };
     });

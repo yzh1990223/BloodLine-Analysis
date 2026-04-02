@@ -14,7 +14,7 @@ ANNOTATED_METHOD_PATTERN = re.compile(
     r"@(Select|Insert|Update|Delete)\s*"
     r"\(\s*(?:value\s*=\s*)?"
     r"(.+?)"
-    r"\)\s+[\w<>\[\]\.]+\s+(\w+)\s*\(",
+    r"\)\s+[\w<>\[\]\.,\s?]+\s+(\w+)\s*\(",
     re.MULTILINE | re.DOTALL,
 )
 ANNOTATED_SQL_STRING_PATTERN = re.compile(r"\"((?:\\.|[^\"\\])*)\"")

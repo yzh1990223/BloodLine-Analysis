@@ -119,6 +119,23 @@ def _mapper_type_from_service_impl(module: JavaModuleParseResult) -> str | None:
     return _normalize_type_name(match.group(1))
 
 
+def _serviceimpl_wrapper_targets_mapper(
+    module: JavaModuleParseResult,
+    method_name: str,
+    mapper_module: JavaModuleParseResult | None,
+) -> bool:
+    """Return whether a ServiceImpl wrapper method should bridge to the mapper."""
+
+    if mapper_module is None or method_name not in mapper_module.methods:
+        return False
+
+    method = module.methods.get(method_name)
+    if method is None:
+        return False
+
+    return "getBaseMapper" in method.calls and not method.statement_ids
+
+
 def _resolve_call_target(
     modules_by_name: dict[str, JavaModuleParseResult],
     type_index: JavaTypeIndex,
@@ -129,7 +146,13 @@ def _resolve_call_target(
 
     if "." not in call:
         module = modules_by_name.get(current_module_name)
-        if module is None or call not in module.methods:
+        if module is None:
+            return None
+        mapper_type = _mapper_type_from_service_impl(module)
+        mapper_module = None if mapper_type is None else modules_by_name.get(mapper_type)
+        if _serviceimpl_wrapper_targets_mapper(module, call, mapper_module):
+            return mapper_type, call  # type: ignore[return-value]
+        if call not in module.methods:
             return None
         return current_module_name, call
 

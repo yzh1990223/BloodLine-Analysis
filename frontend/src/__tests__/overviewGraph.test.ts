@@ -152,3 +152,57 @@ test("focusOverviewGraph highlights the selected node and its direct neighbors",
     )?.className,
   ).toContain("overview-edge-highlighted");
 });
+
+test("buildOverviewGraph places api endpoints to the right with dashed undirected edges", () => {
+  const lineages: TableLineageResponse[] = [
+    {
+      table: {
+        id: 2,
+        key: "table:dm.user_order_summary",
+        name: "dm.user_order_summary",
+        object_type: "data_table",
+      },
+      upstream_tables: [],
+      downstream_tables: [
+        {
+          id: 30,
+          key: "api:POST /rpSiBondCashHolding/list",
+          name: "POST /rpSiBondCashHolding/list",
+          object_type: "api_endpoint",
+        },
+      ],
+      related_objects: { jobs: [], java_modules: [], api_endpoints: [], transformations: [] },
+    },
+    {
+      table: {
+        id: 30,
+        key: "api:POST /rpSiBondCashHolding/list",
+        name: "POST /rpSiBondCashHolding/list",
+        object_type: "api_endpoint",
+      },
+      upstream_tables: [
+        {
+          id: 2,
+          key: "table:dm.user_order_summary",
+          name: "dm.user_order_summary",
+          object_type: "data_table",
+        },
+      ],
+      downstream_tables: [],
+      related_objects: { jobs: [], java_modules: [], api_endpoints: [], transformations: [] },
+    },
+  ];
+
+  const graph = buildOverviewGraph(lineages);
+  const tableNode = graph.nodes.find((node) => node.id === "table:dm.user_order_summary");
+  const apiNode = graph.nodes.find((node) => node.id === "api:POST /rpSiBondCashHolding/list");
+  const apiEdge = graph.edges.find(
+    (edge) => edge.id === "table:dm.user_order_summary->api:POST /rpSiBondCashHolding/list",
+  );
+
+  expect(apiNode?.position.x).toBeGreaterThan(tableNode?.position.x ?? 0);
+  expect(apiEdge?.source).toBe("table:dm.user_order_summary");
+  expect(apiEdge?.target).toBe("api:POST /rpSiBondCashHolding/list");
+  expect(apiEdge?.markerEnd).toBeUndefined();
+  expect(apiEdge?.style?.strokeDasharray).toBe("8 6");
+});

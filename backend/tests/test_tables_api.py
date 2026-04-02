@@ -261,6 +261,29 @@ def test_api_endpoint_payload_reports_unresolved_reason_labels(client):
     ]
 
 
+def test_api_endpoint_lineage_reads_tables_through_serviceimpl_getbasemapper_bridge(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_service_impl_mapper_bridge"},
+    )
+
+    assert response.status_code == 202
+
+    payload = client.get("/api/tables/search", params={"q": "/IbApp/IbAbn/getRiskClsfList"})
+    assert payload.status_code == 200
+    api_item = next(
+        item
+        for item in payload.json()["items"]
+        if item["key"] == "api:GET /IbApp/IbAbn/getRiskClsfList"
+    )
+    assert api_item["payload"]["diagnostics"]["read_table_count"] == 1
+
+    lineage = client.get("/api/tables/table:rp_ib_abn_risk_mgmt_dtl_d/lineage")
+    assert lineage.status_code == 200
+    api_endpoints = lineage.json()["related_objects"]["api_endpoints"]
+    assert any(item["key"] == "api:GET /IbApp/IbAbn/getRiskClsfList" for item in api_endpoints)
+
+
 def test_api_endpoint_payload_ignores_result_wrapper_calls(client):
     client.post(
         "/api/scan",

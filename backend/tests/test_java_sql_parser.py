@@ -166,6 +166,15 @@ def test_java_parser_decodes_escaped_newlines_in_annotation_sql():
     assert result.methods["loadOrders"].statement_ids == ["sql_0"]
 
 
+def test_java_parser_extracts_annotated_sql_with_generic_map_return_type_spacing():
+    parser = JavaSqlParser()
+    result = parser.parse_file(Path("tests/fixtures/java_service_impl_mapper_bridge/AbnRiskMapper.java"))
+
+    assert result.read_tables == ["RP_IB_ABN_RISK_MGMT_DTL_D"]
+    assert result.write_tables == []
+    assert result.methods["getRiskClsfList"].statement_ids == ["sql_0"]
+
+
 def test_java_parser_extracts_static_tables_from_xml_mapper():
     parser = JavaSqlParser()
     result = parser.parse_file(Path("tests/fixtures/java_xml_mapper/OrderMapper.java"))
