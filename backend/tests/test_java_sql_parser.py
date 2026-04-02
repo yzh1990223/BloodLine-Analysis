@@ -302,6 +302,233 @@ def test_java_parser_exposes_mybatis_plus_static_metadata():
     assert mapper_result.basemapper_entity == "RpAmFundRiskprofitEntity"
 
 
+def test_java_lineage_reducer_derives_crud_reads_and_writes_from_mapper_metadata(tmp_path):
+    from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
+
+    entity_path = tmp_path / "RpAmFundRiskprofitEntity.java"
+    entity_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import com.baomidou.mybatisplus.annotation.TableName;
+
+        @TableName("RP_AM_FUND_RISKPROFIT")
+        public class RpAmFundRiskprofitEntity {
+        }
+        """
+    )
+
+    mapper_path = tmp_path / "RpAmFundRiskprofitMapper.java"
+    mapper_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface RpAmFundRiskprofitMapper extends BaseMapper<RpAmFundRiskprofitEntity> {
+        }
+        """
+    )
+
+    service_path = tmp_path / "AnalyticsService.java"
+    service_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class AnalyticsService {
+            private RpAmFundRiskprofitMapper rpAmFundRiskprofitMapper;
+
+            public Page<RpAmFundRiskprofitEntity> selectPageResult() {
+                return rpAmFundRiskprofitMapper.selectPage(new Page<>(), new LambdaQueryWrapper<>());
+            }
+
+            public java.util.List<RpAmFundRiskprofitEntity> selectListResult() {
+                return rpAmFundRiskprofitMapper.selectList(new LambdaQueryWrapper<>());
+            }
+
+            public RpAmFundRiskprofitEntity selectOneResult() {
+                return rpAmFundRiskprofitMapper.selectOne(new LambdaQueryWrapper<>());
+            }
+
+            public RpAmFundRiskprofitEntity selectByIdResult() {
+                return rpAmFundRiskprofitMapper.selectById(1L);
+            }
+
+            public int insertResult() {
+                return rpAmFundRiskprofitMapper.insert(new RpAmFundRiskprofitEntity());
+            }
+        }
+        """
+    )
+
+    reduced = reduce_java_modules(
+        [
+            JavaSqlParser().parse_file(entity_path),
+            JavaSqlParser().parse_file(mapper_path),
+            JavaSqlParser().parse_file(service_path),
+        ]
+    )
+
+    service = reduced["AnalyticsService"]
+    assert service.methods["selectPageResult"].read_tables == ["RP_AM_FUND_RISKPROFIT"]
+    assert service.methods["selectListResult"].read_tables == ["RP_AM_FUND_RISKPROFIT"]
+    assert service.methods["selectOneResult"].read_tables == ["RP_AM_FUND_RISKPROFIT"]
+    assert service.methods["selectByIdResult"].read_tables == ["RP_AM_FUND_RISKPROFIT"]
+    assert service.methods["insertResult"].write_tables == ["RP_AM_FUND_RISKPROFIT"]
+
+
+def test_java_lineage_reducer_does_not_treat_serviceimpl_with_extra_calls_as_pure_wrapper(tmp_path):
+    from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
+
+    entity_path = tmp_path / "ReportEntity.java"
+    entity_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import com.baomidou.mybatisplus.annotation.TableName;
+
+        @TableName("REPORT_TABLE")
+        public class ReportEntity {
+        }
+        """
+    )
+
+    mapper_path = tmp_path / "ReportMapper.java"
+    mapper_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface ReportMapper extends BaseMapper<ReportEntity> {
+            @org.apache.ibatis.annotations.Select("select * from REPORT_TABLE")
+            java.util.List<ReportEntity> getRiskClsfList();
+        }
+        """
+    )
+
+    service_path = tmp_path / "ReportServiceImpl.java"
+    service_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportServiceImpl extends ServiceImpl<ReportMapper, ReportEntity> {
+            public java.util.List<ReportEntity> getRiskClsfList() {
+                audit();
+                getBaseMapper();
+                return null;
+            }
+
+            public Page<ReportEntity> outer() {
+                return getRiskClsfList();
+            }
+
+            private void audit() {
+            }
+        }
+        """
+    )
+
+    reduced = reduce_java_modules(
+        [
+            JavaSqlParser().parse_file(entity_path),
+            JavaSqlParser().parse_file(mapper_path),
+            JavaSqlParser().parse_file(service_path),
+        ]
+    )
+
+    service = reduced["ReportServiceImpl"]
+    assert service.methods["getRiskClsfList"].read_tables == []
+    assert service.methods["outer"].read_tables == []
+
+
+def test_java_lineage_reducer_does_not_resolve_ambiguous_interface_impls_by_convention(tmp_path):
+    from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
+
+    entity_path = tmp_path / "ReportEntity.java"
+    entity_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import com.baomidou.mybatisplus.annotation.TableName;
+
+        @TableName("REPORT_TABLE")
+        public class ReportEntity {
+        }
+        """
+    )
+
+    mapper_path = tmp_path / "ReportMapper.java"
+    mapper_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface ReportMapper extends BaseMapper<ReportEntity> {
+            @org.apache.ibatis.annotations.Select("select * from REPORT_TABLE")
+            java.util.List<ReportEntity> getRiskClsfList();
+        }
+        """
+    )
+
+    primary_impl_path = tmp_path / "ReportServiceImpl.java"
+    primary_impl_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportServiceImpl extends ServiceImpl<ReportMapper, ReportEntity> implements IReportService {
+            public java.util.List<ReportEntity> getRiskClsfList() {
+                return getBaseMapper().getRiskClsfList();
+            }
+        }
+        """
+    )
+
+    secondary_impl_path = tmp_path / "AltReportServiceImpl.java"
+    secondary_impl_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class AltReportServiceImpl implements IReportService {
+        }
+        """
+    )
+
+    interface_path = tmp_path / "IReportService.java"
+    interface_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface IReportService {
+        }
+        """
+    )
+
+    controller_path = tmp_path / "ReportApi.java"
+    controller_path.write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ReportApi {
+            private IReportService reportService;
+
+            public java.util.List<ReportEntity> load() {
+                return reportService.getRiskClsfList();
+            }
+        }
+        """
+    )
+
+    reduced = reduce_java_modules(
+        [
+            JavaSqlParser().parse_file(entity_path),
+            JavaSqlParser().parse_file(mapper_path),
+            JavaSqlParser().parse_file(primary_impl_path),
+            JavaSqlParser().parse_file(secondary_impl_path),
+            JavaSqlParser().parse_file(interface_path),
+            JavaSqlParser().parse_file(controller_path),
+        ]
+    )
+
+    controller = reduced["ReportApi"]
+    assert controller.methods["load"].read_tables == []
+
+
 def test_java_symbol_parser_ignores_locals_in_package_private_methods_and_constructors():
     source = """
     package com.demo;

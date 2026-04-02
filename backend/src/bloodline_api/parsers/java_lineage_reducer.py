@@ -54,6 +54,23 @@ class JavaTypeIndex:
 
 
 CRUD_METHODS = {"getById", "list", "page", "save", "updateById", "removeById"}
+CRUD_READ_METHODS = {
+    "selectPage",
+    "selectList",
+    "selectOne",
+    "selectById",
+    "selectBatchIds",
+    "selectMaps",
+    "selectCount",
+}
+CRUD_WRITE_METHODS = {
+    "insert",
+    "updateById",
+    "update",
+    "deleteById",
+    "delete",
+    "deleteBatchIds",
+}
 SERVICE_IMPL_PATTERN = re.compile(r"ServiceImpl<\s*([\w\.\[\]<>]+)")
 IGNORED_ENDPOINT_WRAPPER_CALLS = {"Result.data", "Result.success", "Result.fail", "Result.error"}
 
@@ -119,6 +136,37 @@ def _mapper_type_from_service_impl(module: JavaModuleParseResult) -> str | None:
     return _normalize_type_name(match.group(1))
 
 
+def _table_name_from_basemapper_module(
+    module: JavaModuleParseResult,
+    modules_by_name: dict[str, JavaModuleParseResult],
+) -> str | None:
+    """Resolve a mapper module to its entity table name via BaseMapper metadata."""
+
+    if not module.basemapper_entity:
+        return None
+    entity_module = modules_by_name.get(module.basemapper_entity)
+    if entity_module is None:
+        return None
+    return entity_module.table_name
+
+
+def _crud_tables_for_module(
+    module: JavaModuleParseResult,
+    method_name: str,
+    modules_by_name: dict[str, JavaModuleParseResult],
+) -> tuple[set[str], set[str]]:
+    """Derive table facts for a whitelist CRUD method when no explicit body exists."""
+
+    table_name = _table_name_from_basemapper_module(module, modules_by_name)
+    if table_name is None:
+        return set(), set()
+    if method_name in CRUD_READ_METHODS:
+        return {table_name}, set()
+    if method_name in CRUD_WRITE_METHODS:
+        return set(), {table_name}
+    return set(), set()
+
+
 def _serviceimpl_wrapper_targets_mapper(
     module: JavaModuleParseResult,
     method_name: str,
@@ -133,7 +181,8 @@ def _serviceimpl_wrapper_targets_mapper(
     if method is None:
         return False
 
-    return "getBaseMapper" in method.calls and not method.statement_ids
+    allowed_calls = {"getBaseMapper", method_name}
+    return not method.statement_ids and "getBaseMapper" in method.calls and set(method.calls).issubset(allowed_calls)
 
 
 def _resolve_call_target(
@@ -164,6 +213,8 @@ def _resolve_call_target(
     if declared_type:
         normalized_type = _normalize_type_name(declared_type)
         impl_candidates = type_index.interface_to_impls.get(normalized_type, [])
+        if len(impl_candidates) > 1:
+            return None
         if len(impl_candidates) == 1:
             candidate_module_names.extend(impl_candidates)
         candidate_module_names.extend(_candidate_module_names_from_type(declared_type))
@@ -174,6 +225,9 @@ def _resolve_call_target(
         if target_module is None:
             continue
         if callee not in target_module.methods:
+            crud_reads, crud_writes = _crud_tables_for_module(target_module, callee, modules_by_name)
+            if crud_reads or crud_writes:
+                return target_module_name, callee
             if callee in CRUD_METHODS:
                 mapper_type = _mapper_type_from_service_impl(target_module)
                 mapper_module = None if mapper_type is None else modules_by_name.get(mapper_type)
@@ -265,7 +319,7 @@ def _reduce_method_tables(
     module = modules_by_name[module_name]
     method: JavaMethodFact | None = module.methods.get(method_name)
     if method is None:
-        return set(), set()
+        return _crud_tables_for_module(module, method_name, modules_by_name)
 
     visiting.add(key)
     reads: set[str] = set()
