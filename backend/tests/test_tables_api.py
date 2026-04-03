@@ -565,6 +565,134 @@ def test_api_endpoint_lineage_writes_tables_through_mybatis_plus_iservice_crud(c
     assert downstream_keys == {"table:v_rp_ib_abs_risk_mgmt_dtl_d"}
 
 
+def test_api_endpoint_diagnostics_ignore_dto_getters_and_wrapper_builders(client, tmp_path):
+    java_root = tmp_path / "java_mybatis_plus_iservice_noise"
+    java_root.mkdir()
+
+    (java_root / "BaseMapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface BaseMapper<T> {
+        }
+        """
+    )
+    (java_root / "IService.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface IService<T> {
+            boolean update(LambdaUpdateWrapper<T> updateWrapper);
+        }
+        """
+    )
+    (java_root / "ServiceImpl.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ServiceImpl<M, T> {
+        }
+        """
+    )
+    (java_root / "LambdaUpdateWrapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class LambdaUpdateWrapper<T> {
+            public LambdaUpdateWrapper<T> eq(String field, String value) {
+                return this;
+            }
+
+            public LambdaUpdateWrapper<T> set(String field, String value) {
+                return this;
+            }
+        }
+        """
+    )
+    (java_root / "RiskRequestDto.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class RiskRequestDto {
+            public String getMemo() {
+                return "";
+            }
+
+            public String getScrtCd() {
+                return "";
+            }
+        }
+        """
+    )
+    (java_root / "IbAbsRiskEntity.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        @TableName("V_RP_IB_ABS_RISK_MGMT_DTL_D")
+        public class IbAbsRiskEntity {
+        }
+        """
+    )
+    (java_root / "IbAbsRiskMapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface IbAbsRiskMapper extends BaseMapper<IbAbsRiskEntity> {
+        }
+        """
+    )
+    (java_root / "IbAbsRiskService.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface IbAbsRiskService extends IService<IbAbsRiskEntity> {
+        }
+        """
+    )
+    (java_root / "IbAbsRiskController.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import org.springframework.web.bind.annotation.PostMapping;
+        import org.springframework.web.bind.annotation.RequestMapping;
+        import org.springframework.web.bind.annotation.RestController;
+
+        @RestController
+        @RequestMapping("/IbApp/IbAbs")
+        public class IbAbsRiskController {
+            private final IbAbsRiskService ibAbsRiskService;
+
+            public IbAbsRiskController(IbAbsRiskService ibAbsRiskService) {
+                this.ibAbsRiskService = ibAbsRiskService;
+            }
+
+            @PostMapping("/updateNoiseFiltered")
+            public boolean updateNoiseFiltered(RiskRequestDto requestDto) {
+                LambdaUpdateWrapper<IbAbsRiskEntity> updateWrapper = new LambdaUpdateWrapper<>();
+                updateWrapper.eq("memo", requestDto.getMemo());
+                updateWrapper.set("scrtCd", requestDto.getScrtCd());
+                return ibAbsRiskService.update(updateWrapper);
+            }
+        }
+        """
+    )
+
+    response = client.post("/api/scan", json={"java_source_root": str(java_root)})
+
+    assert response.status_code == 202
+
+    payload = client.get("/api/tables/search", params={"q": "/IbApp/IbAbs/updateNoiseFiltered"})
+    assert payload.status_code == 200
+    api_item = next(item for item in payload.json()["items"] if item["key"] == "api:POST /IbApp/IbAbs/updateNoiseFiltered")
+    assert api_item["payload"]["diagnostics"] == {
+        "resolved_calls": 1,
+        "unresolved_calls": 0,
+        "unresolved_reasons": [],
+        "read_table_count": 0,
+        "write_table_count": 1,
+    }
+
+
 def test_api_endpoint_payload_reports_missing_mybatis_plus_table_name_evidence(client, tmp_path):
     java_root = tmp_path / "java_mybatis_plus_missing_table_name"
     java_root.mkdir()

@@ -382,6 +382,53 @@ def _should_ignore_endpoint_wrapper_call(call: str) -> bool:
     return call in IGNORED_ENDPOINT_WRAPPER_CALLS
 
 
+def _should_ignore_endpoint_noise_call(
+    modules_by_name: dict[str, JavaModuleParseResult],
+    current_module_name: str,
+    call: str,
+) -> bool:
+    """Skip non-lineage local DTO/getter and wrapper-builder calls in endpoint diagnostics."""
+
+    if _should_ignore_endpoint_wrapper_call(call):
+        return True
+    if "." not in call:
+        return False
+
+    receiver, callee = call.split(".", 1)
+    current_module = modules_by_name.get(current_module_name)
+    declared_type = None if current_module is None else current_module.receiver_types.get(receiver)
+    lower_receiver = receiver.lower()
+
+    if callee.startswith("get") and (
+        lower_receiver.endswith("dto")
+        or lower_receiver.endswith("request")
+        or lower_receiver.endswith("response")
+        or lower_receiver.endswith("vo")
+    ):
+        return True
+
+    if "wrapper" in lower_receiver:
+        return True
+
+    if declared_type is None:
+        return False
+
+    normalized_type = _normalize_type_name(declared_type)
+    lower_type = normalized_type.lower()
+    if callee.startswith("get") and (
+        lower_type.endswith("dto")
+        or lower_type.endswith("request")
+        or lower_type.endswith("response")
+        or lower_type.endswith("vo")
+    ):
+        return True
+
+    if "wrapper" in lower_type:
+        return True
+
+    return False
+
+
 def _reduce_method_tables(
     modules_by_name: dict[str, JavaModuleParseResult],
     statements_by_module: dict[str, dict[str, JavaSqlStatement]],
@@ -511,7 +558,11 @@ def reduce_java_api_endpoints(
         unresolved_reasons: list[dict[str, str]] = []
         if source_method is not None:
             for call in source_method.calls:
-                if _should_ignore_endpoint_wrapper_call(call):
+                if _should_ignore_endpoint_noise_call(
+                    source_modules_by_name,
+                    endpoint.controller_module_name,
+                    call,
+                ):
                     continue
                 if _resolve_call_target(source_modules_by_name, source_type_index, endpoint.controller_module_name, call) is None:
                     unresolved_call_count += 1
