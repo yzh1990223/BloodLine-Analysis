@@ -72,6 +72,8 @@ CRUD_WRITE_METHODS = {
     "deleteBatchIds",
 }
 SERVICE_IMPL_PATTERN = re.compile(r"ServiceImpl<\s*([\w\.\[\]<>]+)")
+SERVICE_IMPL_ENTITY_PATTERN = re.compile(r"ServiceImpl<\s*[\w\.\[\]<>]+\s*,\s*([\w\.\[\]<>]+)")
+ISERVICE_PATTERN = re.compile(r"IService<\s*([\w\.\[\]<>]+)")
 IGNORED_ENDPOINT_WRAPPER_CALLS = {"Result.data", "Result.success", "Result.fail", "Result.error"}
 
 
@@ -87,6 +89,7 @@ def _normalize_type_name(type_name: str) -> str:
     """Normalize declared Java type names for stable matching."""
 
     type_name = re.sub(r"<.*>$", "", type_name)
+    type_name = re.sub(r">+$", "", type_name)
     simple_name = type_name.split(".")[-1]
     simple_name = re.sub(r"\[\]$", "", simple_name)
     return simple_name
@@ -136,6 +139,38 @@ def _mapper_type_from_service_impl(module: JavaModuleParseResult) -> str | None:
     return _normalize_type_name(match.group(1))
 
 
+def _service_entity_type(module: JavaModuleParseResult) -> str | None:
+    """Extract the entity type bound through IService or ServiceImpl metadata."""
+
+    if not module.extended_type:
+        return None
+
+    service_impl_match = SERVICE_IMPL_ENTITY_PATTERN.search(module.extended_type)
+    if service_impl_match is not None:
+        return _normalize_type_name(service_impl_match.group(1))
+
+    iservice_match = ISERVICE_PATTERN.search(module.extended_type)
+    if iservice_match is not None:
+        return _normalize_type_name(iservice_match.group(1))
+
+    return None
+
+
+def _table_name_from_service_module(
+    module: JavaModuleParseResult,
+    modules_by_name: dict[str, JavaModuleParseResult],
+) -> str | None:
+    """Resolve a service interface or ServiceImpl module to its entity table name."""
+
+    entity_type = _service_entity_type(module)
+    if entity_type is None:
+        return None
+    entity_module = modules_by_name.get(entity_type)
+    if entity_module is None:
+        return None
+    return entity_module.table_name
+
+
 def _table_name_from_basemapper_module(
     module: JavaModuleParseResult,
     modules_by_name: dict[str, JavaModuleParseResult],
@@ -158,6 +193,8 @@ def _crud_tables_for_module(
     """Derive table facts for a whitelist CRUD method when no explicit body exists."""
 
     table_name = _table_name_from_basemapper_module(module, modules_by_name)
+    if table_name is None:
+        table_name = _table_name_from_service_module(module, modules_by_name)
     if table_name is None:
         return set(), set()
     if method_name in CRUD_READ_METHODS:

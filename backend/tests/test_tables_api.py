@@ -443,6 +443,128 @@ def test_api_endpoint_lineage_reads_tables_through_mybatis_plus_base_mapper_and_
     assert downstream_keys == {"table:rp_am_fund_riskprofit", "table:frms.am_product_riskprofit"}
 
 
+def test_api_endpoint_lineage_writes_tables_through_mybatis_plus_iservice_crud(client, tmp_path):
+    java_root = tmp_path / "java_mybatis_plus_iservice_crud"
+    java_root.mkdir()
+
+    (java_root / "BaseMapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface BaseMapper<T> {
+        }
+        """
+    )
+    (java_root / "IService.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface IService<T> {
+            boolean update(LambdaUpdateWrapper<T> updateWrapper);
+        }
+        """
+    )
+    (java_root / "ServiceImpl.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class ServiceImpl<M, T> {
+            protected M getBaseMapper() {
+                return null;
+            }
+        }
+        """
+    )
+    (java_root / "LambdaUpdateWrapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class LambdaUpdateWrapper<T> {
+        }
+        """
+    )
+    (java_root / "IbAbsRiskEntity.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        @TableName("V_RP_IB_ABS_RISK_MGMT_DTL_D")
+        public class IbAbsRiskEntity {
+        }
+        """
+    )
+    (java_root / "IbAbsRiskMapper.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface IbAbsRiskMapper extends BaseMapper<IbAbsRiskEntity> {
+        }
+        """
+    )
+    (java_root / "IbAbsRiskService.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public interface IbAbsRiskService extends IService<IbAbsRiskEntity> {
+        }
+        """
+    )
+    (java_root / "IbAbsRiskServiceImpl.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        public class IbAbsRiskServiceImpl extends ServiceImpl<IbAbsRiskMapper, IbAbsRiskEntity>
+            implements IbAbsRiskService {
+        }
+        """
+    )
+    (java_root / "IbAbsRiskController.java").write_text(
+        """
+        package com.demo.mybatispluscrud;
+
+        import org.springframework.web.bind.annotation.PostMapping;
+        import org.springframework.web.bind.annotation.RequestMapping;
+        import org.springframework.web.bind.annotation.RestController;
+
+        @RestController
+        @RequestMapping("/IbApp/IbAbs")
+        public class IbAbsRiskController {
+            private final IbAbsRiskService ibAbsRiskService;
+
+            public IbAbsRiskController(IbAbsRiskService ibAbsRiskService) {
+                this.ibAbsRiskService = ibAbsRiskService;
+            }
+
+            @PostMapping("/updateIbAbsRiskMgmt")
+            public boolean updateIbAbsRiskMgmt() {
+                return ibAbsRiskService.update(new LambdaUpdateWrapper<>());
+            }
+        }
+        """
+    )
+
+    response = client.post("/api/scan", json={"java_source_root": str(java_root)})
+
+    assert response.status_code == 202
+
+    payload = client.get("/api/tables/search", params={"q": "/IbApp/IbAbs/updateIbAbsRiskMgmt"})
+    assert payload.status_code == 200
+    api_item = next(
+        item for item in payload.json()["items"] if item["key"] == "api:POST /IbApp/IbAbs/updateIbAbsRiskMgmt"
+    )
+    assert api_item["payload"]["diagnostics"] == {
+        "resolved_calls": 1,
+        "unresolved_calls": 0,
+        "unresolved_reasons": [],
+        "read_table_count": 0,
+        "write_table_count": 1,
+    }
+
+    lineage = client.get("/api/tables/api%3APOST%20%2FIbApp%2FIbAbs%2FupdateIbAbsRiskMgmt/connected-lineage")
+    assert lineage.status_code == 200
+    downstream_keys = {item["key"].lower() for item in lineage.json()["table_lineage"]["downstream_tables"]}
+    assert downstream_keys == {"table:v_rp_ib_abs_risk_mgmt_dtl_d"}
+
+
 def test_api_endpoint_payload_reports_missing_mybatis_plus_table_name_evidence(client, tmp_path):
     java_root = tmp_path / "java_mybatis_plus_missing_table_name"
     java_root.mkdir()

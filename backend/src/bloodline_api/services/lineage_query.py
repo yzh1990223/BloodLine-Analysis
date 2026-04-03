@@ -43,6 +43,8 @@ CRUD_WRITE_METHODS = {
     "delete",
     "deleteBatchIds",
 }
+SERVICE_IMPL_ENTITY_PATTERN = re.compile(r"ServiceImpl<\s*[\w\.\[\]<>]+\s*,\s*([\w\.\[\]<>]+)")
+ISERVICE_PATTERN = re.compile(r"IService<\s*([\w\.\[\]<>]+)")
 
 
 def _resolve_input_path(value: str) -> Path:
@@ -73,6 +75,7 @@ def _normalize_java_type_name(type_ref: str) -> str:
     """Normalize one Java type reference to its simple outer type name."""
 
     normalized = re.sub(r"<.*>$", "", type_ref.strip())
+    normalized = re.sub(r">+$", "", normalized)
     normalized = re.sub(r"\[\]$", "", normalized)
     return normalized.split(".")[-1]
 
@@ -101,10 +104,20 @@ def _mybatis_plus_missing_evidence_reason(
     if mapper_module is None:
         return "crud_method_without_table_binding"
 
-    if not mapper_module.basemapper_entity:
+    entity_name = mapper_module.basemapper_entity
+    if not entity_name and mapper_module.extended_type:
+        service_impl_match = SERVICE_IMPL_ENTITY_PATTERN.search(mapper_module.extended_type)
+        if service_impl_match is not None:
+            entity_name = _normalize_java_type_name(service_impl_match.group(1))
+        else:
+            iservice_match = ISERVICE_PATTERN.search(mapper_module.extended_type)
+            if iservice_match is not None:
+                entity_name = _normalize_java_type_name(iservice_match.group(1))
+
+    if not entity_name:
         return "mapper_without_basemapper_entity"
 
-    entity_module = modules_by_name.get(mapper_module.basemapper_entity)
+    entity_module = modules_by_name.get(entity_name)
     if entity_module is None or not entity_module.table_name:
         return "entity_without_table_name"
 
