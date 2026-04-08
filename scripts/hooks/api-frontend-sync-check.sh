@@ -17,15 +17,27 @@ frontend_paths=(
   "/api/analysis/cycles"
 )
 
+search_fixed_path() {
+  local needle="$1"
+  local target_dir="$2"
+
+  if command -v rg >/dev/null 2>&1; then
+    rg -F "$needle" "$target_dir" >/dev/null
+    return
+  fi
+
+  grep -R -F "$needle" "$target_dir" >/dev/null
+}
+
 for path in "${backend_paths[@]}"; do
-  if ! rg -F "$path" "$root_dir/backend/src/bloodline_api" >/dev/null; then
+  if ! search_fixed_path "$path" "$root_dir/backend/src/bloodline_api"; then
     echo "[api-sync] 后端未发现关键路径：$path"
     exit 1
   fi
 done
 
 for path in "${frontend_paths[@]}"; do
-  if ! rg -F "$path" "$root_dir/frontend/src" >/dev/null; then
+  if ! search_fixed_path "$path" "$root_dir/frontend/src"; then
     echo "[api-sync] 前端未发现关键路径：$path"
     exit 1
   fi
