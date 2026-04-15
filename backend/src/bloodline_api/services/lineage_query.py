@@ -1279,14 +1279,21 @@ class LineageQueryService:
         raw_lineages = [
             self.get_table_lineage(db, node.key)
             for node in db.scalars(
-                select(Node)
-                .where(Node.id.in_(allowed_ids))
-                .order_by(Node.name.asc(), Node.id.asc())
+                select(Node).where(Node.id.in_(allowed_ids)).order_by(Node.name.asc(), Node.id.asc())
             ).all()
         ]
+        api_endpoint_keys = {
+            node_key
+            for node_key in db.scalars(
+                select(Node.key).where(
+                    Node.id.in_(self._collect_connected_api_endpoint_ids(db, allowed_ids))
+                )
+            ).all()
+        }
         items = self._collect_directional_lineages(
             table.key,
             [lineage for lineage in raw_lineages if lineage is not None],
+            terminal_keys=api_endpoint_keys,
         )
         table_lineage = next(
             (item for item in items if item["table"] and item["table"]["key"] == table.key),
@@ -1385,14 +1392,37 @@ class LineageQueryService:
 
         return visited
 
+    def _collect_connected_api_endpoint_ids(self, db: Session, table_ids: set[int]) -> set[int]:
+        """Return API endpoints that directly read or write the collected table-like nodes."""
+
+        if not table_ids:
+            return set()
+
+        return set(
+            db.scalars(
+                select(Edge.src_node_id)
+                .join(Node, Node.id == Edge.src_node_id)
+                .where(
+                    Node.type == "api_endpoint",
+                    Edge.dst_node_id.in_(table_ids),
+                    Edge.type.in_(("READS", "WRITES")),
+                )
+            ).all()
+        )
+
     def _collect_directional_lineages(
-        self, current_table_key: str, lineages: list[dict[str, Any]]
+        self,
+        current_table_key: str,
+        lineages: list[dict[str, Any]],
+        *,
+        terminal_keys: set[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Keep only monotonic upstream/downstream paths around the current table."""
 
         lineage_by_key: dict[str, dict[str, Any]] = {}
         upstream_by_node: dict[str, set[str]] = {}
         downstream_by_node: dict[str, set[str]] = {}
+        terminal_keys = terminal_keys or set()
 
         def ensure_direction_map(direction_map: dict[str, set[str]], key: str) -> set[str]:
             if key not in direction_map:
@@ -1446,7 +1476,7 @@ class LineageQueryService:
         downstream_reachable = walk_direction(current_table_key, downstream_by_node)
         upstream_distance = collect_distance_map(current_table_key, upstream_by_node)
         downstream_distance = collect_distance_map(current_table_key, downstream_by_node)
-        allowed_keys = upstream_reachable | downstream_reachable | {current_table_key}
+        allowed_keys = upstream_reachable | downstream_reachable | {current_table_key} | terminal_keys
 
         filtered_lineages: list[dict[str, Any]] = []
         for key in sorted(allowed_keys):

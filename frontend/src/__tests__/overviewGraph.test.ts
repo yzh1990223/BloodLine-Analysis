@@ -201,6 +201,7 @@ test("buildOverviewGraph places api endpoints to the right with dashed undirecte
   );
 
   expect(apiNode?.position.x).toBeGreaterThan(tableNode?.position.x ?? 0);
+  expect(apiNode?.className).toContain("overview-node-api");
   expect(apiEdge?.source).toBe("table:dm.user_order_summary");
   expect(apiEdge?.target).toBe("api:POST /rpSiBondCashHolding/list");
   expect(apiEdge?.markerEnd).toBeUndefined();

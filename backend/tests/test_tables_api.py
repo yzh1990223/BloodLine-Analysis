@@ -284,6 +284,25 @@ def test_api_endpoint_lineage_reads_tables_through_serviceimpl_getbasemapper_bri
     assert any(item["key"] == "api:GET /IbApp/IbAbn/getRiskClsfList" for item in api_endpoints)
 
 
+def test_connected_lineage_includes_downstream_api_endpoints_for_table_details(client):
+    response = client.post(
+        "/api/scan",
+        json={"java_source_root": "tests/fixtures/java_service_impl_bridge"},
+    )
+
+    assert response.status_code == 202
+
+    connected = client.get("/api/tables/table:dm.user_info/connected-lineage")
+    assert connected.status_code == 200
+    items = connected.json()["items"]
+    item_by_key = {item["table"]["key"]: item for item in items}
+
+    assert {item["key"] for item in item_by_key["table:dm.user_info"]["downstream_tables"]} >= {
+        "api:GET /users"
+    }
+    assert "api:GET /users" not in item_by_key
+
+
 def test_api_endpoint_lineage_reads_tables_through_serviceimpl_base_mapper_variants(client, tmp_path):
     java_root = tmp_path / "java_mybatis_plus_serviceimpl_base_mapper"
     java_root.mkdir()

@@ -198,6 +198,7 @@ export function buildOverviewGraph(
       const targetHandles = targetHandlesByNode.get(key) ?? [];
       const handleCount = Math.max(sourceHandles.length, targetHandles.length, 1);
       const nodeHeight = separateHandles ? Math.max(42, 18 + handleCount * 12) : undefined;
+      const apiNodeClass = isApiEndpoint(objectTypes.get(key)) ? " overview-node-api" : "";
       nodes.push({
         id: key,
         type: "overviewObject",
@@ -216,7 +217,7 @@ export function buildOverviewGraph(
         draggable: false,
         selectable: true,
         connectable: false,
-        className: `overview-node overview-node-${role} overview-node-level-${level % 6}`,
+        className: `overview-node overview-node-${role} overview-node-level-${level % 6}${apiNodeClass}`,
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
       });

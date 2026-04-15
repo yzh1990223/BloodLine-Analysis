@@ -580,6 +580,14 @@ a {
   transition: opacity 140ms ease, box-shadow 140ms ease, transform 140ms ease;
 }
 
+.detail-overview-flow .react-flow__node.overview-node-api {
+  width: 184px;
+}
+
+.detail-overview-flow .react-flow__node.detail-node-api {
+  width: 184px;
+}
+
 .detail-overview-flow .detail-lineage-card {
   display: flex;
   align-items: center;
@@ -747,6 +755,20 @@ a {
   font-weight: 600;
   line-height: 1.2;
   color: rgba(255, 255, 255, 0.82);
+}
+
+.detail-overview-flow .detail-lineage-card.detail-lineage-card-api {
+  min-height: 56px;
+  padding: 14px 26px;
+  border-radius: 999px;
+  box-shadow:
+    0 10px 22px rgba(24, 68, 94, 0.16),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.detail-overview-flow .detail-lineage-card.detail-lineage-card-api .node-bilingual-labels {
+  align-items: center;
+  text-align: center;
 }
 
 .overview-flow .react-flow__node:hover {

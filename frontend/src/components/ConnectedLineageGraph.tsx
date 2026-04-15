@@ -18,10 +18,11 @@ interface ConnectedLineageGraphProps {
 function DetailLineageNode({ data }: NodeProps<OverviewNodeData>) {
   const sourceHandles = data.sourceHandles?.length ? data.sourceHandles : ["source-0"];
   const targetHandles = data.targetHandles?.length ? data.targetHandles : ["target-0"];
+  const isApiEndpoint = data.objectType === "api_endpoint";
 
   return (
     <div
-      className="detail-lineage-card"
+      className={`detail-lineage-card${isApiEndpoint ? " detail-lineage-card-api" : ""}`}
       title={data.technicalName}
       style={data.nodeHeight ? { minHeight: `${data.nodeHeight}px` } : undefined}
     >
@@ -106,6 +107,7 @@ export function ConnectedLineageGraph({
         ...node,
         className: [
           node.className ?? "",
+          node.data.objectType === "api_endpoint" ? "detail-node-api" : "",
           relatedSelection.size > 0
             ? relatedSelection.has(node.id)
               ? "detail-node-neighbor"
