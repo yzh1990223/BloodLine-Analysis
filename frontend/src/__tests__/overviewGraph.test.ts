@@ -206,3 +206,44 @@ test("buildOverviewGraph places api endpoints to the right with dashed undirecte
   expect(apiEdge?.markerEnd).toBeUndefined();
   expect(apiEdge?.style?.strokeDasharray).toBe("8 6");
 });
+
+test("buildOverviewGraph increases vertical spacing for taller nodes", () => {
+  const lineages: TableLineageResponse[] = [
+    {
+      table: {
+        id: 1,
+        key: "table:a.source",
+        name: "a.source",
+        object_type: "data_table",
+      },
+      upstream_tables: [],
+      downstream_tables: [
+        { id: 10, key: "table:m1", name: "m1", object_type: "data_table" },
+        { id: 11, key: "table:m2", name: "m2", object_type: "data_table" },
+        { id: 12, key: "table:m3", name: "m3", object_type: "data_table" },
+        { id: 13, key: "table:m4", name: "m4", object_type: "data_table" },
+      ],
+      related_objects: { jobs: [], java_modules: [], transformations: [] },
+    },
+    {
+      table: {
+        id: 2,
+        key: "table:z.source",
+        name: "z.source",
+        object_type: "data_table",
+      },
+      upstream_tables: [],
+      downstream_tables: [{ id: 20, key: "table:m5", name: "m5", object_type: "data_table" }],
+      related_objects: { jobs: [], java_modules: [], transformations: [] },
+    },
+  ];
+
+  const graph = buildOverviewGraph(lineages, { separateHandles: true, rowGap: 104 });
+  const firstSource = graph.nodes.find((node) => node.id === "table:a.source");
+  const secondSource = graph.nodes.find((node) => node.id === "table:z.source");
+
+  expect(firstSource?.data.nodeHeight).toBeGreaterThan(60);
+  expect(secondSource?.position.y).toBe(
+    (firstSource?.position.y ?? 0) + (firstSource?.data.nodeHeight ?? 0) + 104,
+  );
+});

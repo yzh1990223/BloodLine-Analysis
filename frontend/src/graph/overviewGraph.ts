@@ -20,6 +20,7 @@ export interface OverviewGraphElements {
 
 const COLUMN_GAP = 360;
 const ROW_GAP = 140;
+const DEFAULT_NODE_HEIGHT = 60;
 
 interface BuildOverviewGraphOptions {
   columnGap?: number;
@@ -190,11 +191,13 @@ export function buildOverviewGraph(
       const rightName = tableNames.get(right) ?? right;
       return leftName.localeCompare(rightName);
     });
+    let currentY = 0;
     keys.forEach((key, index) => {
       const role = classifyNodeRole(key, incomingCount, outgoingCount);
       const sourceHandles = sourceHandlesByNode.get(key) ?? [];
       const targetHandles = targetHandlesByNode.get(key) ?? [];
       const handleCount = Math.max(sourceHandles.length, targetHandles.length, 1);
+      const nodeHeight = separateHandles ? Math.max(42, 18 + handleCount * 12) : undefined;
       nodes.push({
         id: key,
         type: "overviewObject",
@@ -207,9 +210,9 @@ export function buildOverviewGraph(
           level,
           sourceHandles,
           targetHandles,
-          nodeHeight: separateHandles ? Math.max(42, 18 + handleCount * 12) : undefined,
+          nodeHeight,
         },
-        position: { x: level * columnGap, y: index * rowGap },
+        position: { x: level * columnGap, y: currentY },
         draggable: false,
         selectable: true,
         connectable: false,
@@ -217,6 +220,7 @@ export function buildOverviewGraph(
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
       });
+      currentY += (nodeHeight ?? DEFAULT_NODE_HEIGHT) + rowGap;
     });
   }
 
