@@ -300,6 +300,89 @@ def test_connected_lineage_includes_downstream_api_endpoints_for_table_details(c
     assert {item["key"] for item in item_by_key["table:dm.user_info"]["downstream_tables"]} >= {
         "api:GET /users"
     }
+
+
+def test_connected_lineage_excludes_upstream_api_noise_for_table_details(client, db_session):
+    upstream_table = Node(
+        type="data_object",
+        key="table:dm.upstream_source",
+        name="dm.upstream_source",
+        payload={"object_type": "data_table"},
+    )
+    current_table = Node(
+        type="data_object",
+        key="table:frms.rm_client_info",
+        name="frms.rm_client_info",
+        payload={"object_type": "data_table"},
+    )
+    downstream_table = Node(
+        type="data_object",
+        key="table:frms.rm_client_agreement",
+        name="frms.rm_client_agreement",
+        payload={"object_type": "data_table"},
+    )
+    upstream_api = Node(
+        type="api_endpoint",
+        key="api:GET /client/upstreamSource",
+        name="GET /client/upstreamSource",
+        payload={"object_type": "api_endpoint"},
+    )
+    current_api = Node(
+        type="api_endpoint",
+        key="api:POST /client/updateClient",
+        name="POST /client/updateClient",
+        payload={"object_type": "api_endpoint"},
+    )
+    downstream_api = Node(
+        type="api_endpoint",
+        key="api:GET /client/agreement/selectAgreementByClientInfoClientUnicode",
+        name="GET /client/agreement/selectAgreementByClientInfoClientUnicode",
+        payload={"object_type": "api_endpoint"},
+    )
+    db_session.add_all(
+        [
+            upstream_table,
+            current_table,
+            downstream_table,
+            upstream_api,
+            current_api,
+            downstream_api,
+        ]
+    )
+    db_session.flush()
+    db_session.add_all(
+        [
+            Edge(src_node_id=upstream_table.id, dst_node_id=current_table.id, type="FLOWS_TO"),
+            Edge(src_node_id=current_table.id, dst_node_id=downstream_table.id, type="FLOWS_TO"),
+            Edge(src_node_id=upstream_api.id, dst_node_id=upstream_table.id, type="READS"),
+            Edge(src_node_id=current_api.id, dst_node_id=current_table.id, type="WRITES"),
+            Edge(src_node_id=downstream_api.id, dst_node_id=downstream_table.id, type="READS"),
+        ]
+    )
+    db_session.commit()
+
+    connected = client.get("/api/tables/table:frms.rm_client_info/connected-lineage")
+
+    assert connected.status_code == 200
+    items = connected.json()["items"]
+    item_by_key = {item["table"]["key"]: item for item in items}
+
+    assert "table:frms.rm_client_info" in item_by_key
+    assert "api:GET /client/upstreamSource" not in item_by_key
+    assert {item["key"] for item in item_by_key["table:dm.upstream_source"]["downstream_tables"]} == {
+        "table:frms.rm_client_info"
+    }
+    assert {
+        item["key"] for item in item_by_key["table:frms.rm_client_info"]["downstream_tables"]
+    } == {
+        "table:frms.rm_client_agreement",
+        "api:POST /client/updateClient",
+    }
+    assert {
+        item["key"] for item in item_by_key["table:frms.rm_client_agreement"]["downstream_tables"]
+    } == {
+        "api:GET /client/agreement/selectAgreementByClientInfoClientUnicode",
+    }
     assert "api:GET /users" not in item_by_key
 
 

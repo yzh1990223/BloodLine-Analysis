@@ -208,6 +208,88 @@ test("buildOverviewGraph places api endpoints to the right with dashed undirecte
   expect(apiEdge?.style?.strokeDasharray).toBe("8 6");
 });
 
+test("buildOverviewGraph keeps api endpoints on the far-right layer", () => {
+  const lineages: TableLineageResponse[] = [
+    {
+      table: {
+        id: 1,
+        key: "table:frms.rm_client_info",
+        name: "frms.rm_client_info",
+        object_type: "data_table",
+      },
+      upstream_tables: [],
+      downstream_tables: [
+        {
+          id: 2,
+          key: "table:frms.rm_client_agreement",
+          name: "frms.rm_client_agreement",
+          object_type: "data_table",
+        },
+        {
+          id: 30,
+          key: "api:POST /client/updateClient",
+          name: "POST /client/updateClient",
+          object_type: "api_endpoint",
+        },
+      ],
+      related_objects: { jobs: [], java_modules: [], api_endpoints: [], transformations: [] },
+    },
+    {
+      table: {
+        id: 2,
+        key: "table:frms.rm_client_agreement",
+        name: "frms.rm_client_agreement",
+        object_type: "data_table",
+      },
+      upstream_tables: [
+        {
+          id: 1,
+          key: "table:frms.rm_client_info",
+          name: "frms.rm_client_info",
+          object_type: "data_table",
+        },
+      ],
+      downstream_tables: [
+        {
+          id: 3,
+          key: "table:frms.rm_client_todo",
+          name: "frms.rm_client_todo",
+          object_type: "data_table",
+        },
+      ],
+      related_objects: { jobs: [], java_modules: [], api_endpoints: [], transformations: [] },
+    },
+    {
+      table: {
+        id: 30,
+        key: "api:POST /client/updateClient",
+        name: "POST /client/updateClient",
+        object_type: "api_endpoint",
+      },
+      upstream_tables: [
+        {
+          id: 1,
+          key: "table:frms.rm_client_info",
+          name: "frms.rm_client_info",
+          object_type: "data_table",
+        },
+      ],
+      downstream_tables: [],
+      related_objects: { jobs: [], java_modules: [], api_endpoints: [], transformations: [] },
+    },
+  ];
+
+  const graph = buildOverviewGraph(lineages);
+  const apiNode = graph.nodes.find((node) => node.id === "api:POST /client/updateClient");
+  const maxNonApiX = Math.max(
+    ...graph.nodes
+      .filter((node) => node.data.objectType !== "api_endpoint")
+      .map((node) => node.position.x),
+  );
+
+  expect(apiNode?.position.x).toBeGreaterThan(maxNonApiX);
+});
+
 test("buildOverviewGraph increases vertical spacing for taller nodes", () => {
   const lineages: TableLineageResponse[] = [
     {

@@ -160,6 +160,17 @@ export function buildOverviewGraph(
     }),
     nodeKeys,
   );
+  const maxNonApiLevel = Math.max(
+    0,
+    ...nodeKeys
+      .filter((key) => !isApiEndpoint(objectTypes.get(key)))
+      .map((key) => levels.get(key) ?? 0),
+  );
+  for (const key of nodeKeys) {
+    if (isApiEndpoint(objectTypes.get(key))) {
+      levels.set(key, maxNonApiLevel + 1);
+    }
+  }
 
   const keysByLevel = new Map<number, string[]>();
   for (const key of nodeKeys) {

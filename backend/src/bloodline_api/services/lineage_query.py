@@ -1276,6 +1276,7 @@ class LineageQueryService:
         upstream_ids = self._collect_directional_table_ids(db, table.id, direction="upstream")
         downstream_ids = self._collect_directional_table_ids(db, table.id, direction="downstream")
         allowed_ids = upstream_ids | downstream_ids | {table.id}
+        api_source_table_ids = downstream_ids | {table.id}
         raw_lineages = [
             self.get_table_lineage(db, node.key)
             for node in db.scalars(
@@ -1286,7 +1287,7 @@ class LineageQueryService:
             node_key
             for node_key in db.scalars(
                 select(Node.key).where(
-                    Node.id.in_(self._collect_connected_api_endpoint_ids(db, allowed_ids))
+                    Node.id.in_(self._collect_connected_api_endpoint_ids(db, api_source_table_ids))
                 )
             ).all()
         }
