@@ -153,6 +153,20 @@ def test_extract_tables_handles_plain_update_statements():
     assert writes == {"dm.cleanup_target"}
 
 
+def test_extract_tables_handles_insert_select_with_column_list():
+    reads, writes = extract_tables(
+        """
+        insert into DM.ex_pledgerepodetail (sjrq, contractid)
+        select c.busi_dt, c.main_ctrct_id
+        from dp.dm_crb_stk_pladge_ctrct_d_mid c
+        left join DM.ex_pledgerepodetail t on c.main_ctrct_id = t.contractid
+        """
+    )
+
+    assert reads == {"dp.dm_crb_stk_pladge_ctrct_d_mid"}
+    assert writes == {"DM.ex_pledgerepodetail"}
+
+
 def test_extract_tables_excludes_cte_aliases_but_keeps_underlying_tables():
     reads, writes = extract_tables(
         """

@@ -96,6 +96,8 @@ def _target_table(expression: exp.Expression) -> exp.Table | None:
         target = expression.this
         if isinstance(target, exp.Table):
             return target
+        if isinstance(target, exp.Schema) and isinstance(target.this, exp.Table):
+            return target.this
     return None
 
 
