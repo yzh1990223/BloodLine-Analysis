@@ -58,6 +58,14 @@ class Node(Base):
         back_populates="target_node",
         foreign_keys="Edge.dst_node_id",
     )
+    outgoing_field_edges: Mapped[list["FieldEdge"]] = relationship(
+        back_populates="source_node",
+        foreign_keys="FieldEdge.src_node_id",
+    )
+    incoming_field_edges: Mapped[list["FieldEdge"]] = relationship(
+        back_populates="target_node",
+        foreign_keys="FieldEdge.dst_node_id",
+    )
     object_metadata: Mapped["ObjectMetadata | None"] = relationship(
         back_populates="node",
         cascade="all, delete-orphan",
@@ -83,6 +91,28 @@ class Edge(Base):
     )
     source_node: Mapped[Node] = relationship(back_populates="outgoing_edges", foreign_keys=[src_node_id])
     target_node: Mapped[Node] = relationship(back_populates="incoming_edges", foreign_keys=[dst_node_id])
+
+
+class FieldEdge(Base):
+    """A persisted field-level edge connecting two nodes at column granularity."""
+
+    __tablename__ = "field_edges"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    edge_id: Mapped[int | None] = mapped_column(ForeignKey("edges.id", ondelete="CASCADE"), nullable=True, index=True)
+    src_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=False, index=True)
+    dst_node_id: Mapped[int] = mapped_column(ForeignKey("nodes.id"), nullable=False, index=True)
+    src_field: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    dst_field: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    is_derived: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+    source_node: Mapped[Node] = relationship(back_populates="outgoing_field_edges", foreign_keys=[src_node_id])
+    target_node: Mapped[Node] = relationship(back_populates="incoming_field_edges", foreign_keys=[dst_node_id])
 
 
 class ObjectMetadata(Base):

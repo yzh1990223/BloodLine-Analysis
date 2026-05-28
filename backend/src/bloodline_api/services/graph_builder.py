@@ -9,8 +9,18 @@ TableFlow = tuple[str, str]
 
 
 def _actor_scope(actor: str) -> str:
-    """Collapse parser-specific actor IDs to the scope used for flow derivation."""
+    """Collapse parser-specific actor IDs to the scope used for flow derivation.
 
+    - transformation::step collapses to transformation so steps within the same
+      transformation can connect reads and writes.
+    - job::entry stays at entry level so different entries within the same job
+      do not cross-pollute flow derivation.
+    """
+
+    if actor.startswith("job:") and "::" in actor:
+        # Keep job entries separate to avoid mixing reads/writes from different
+        # entries within the same job.
+        return actor
     return actor.split("::", 1)[0]
 
 

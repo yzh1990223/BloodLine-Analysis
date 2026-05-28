@@ -7,19 +7,20 @@ import re
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import create_engine, delete, func, select, text
 from sqlalchemy.orm import Session
 
 from bloodline_api.connectors.mysql_metadata import MySQLMetadataLoader
 from bloodline_api.connectors.mysql_metadata import MySQLMetadataConnectionError
 from bloodline_api.connectors.mysql_metadata import MySQLMetadataObject
 from bloodline_api.connectors.mysql_metadata import build_mysql_metadata_request
-from bloodline_api.models import Edge, Node, ObjectMetadata, ObjectMetadataColumn, ScanFailure, ScanRun
+from bloodline_api.models import Edge, FieldEdge, Node, ObjectMetadata, ObjectMetadataColumn, ScanFailure, ScanRun
 from bloodline_api.parsers.java_controller_parser import parse_controller_endpoints
 from bloodline_api.parsers.java_lineage_reducer import reduce_java_api_endpoints
 from bloodline_api.parsers.java_lineage_reducer import reduce_java_modules
 from bloodline_api.parsers.java_sql_parser import JavaSqlParser
 from bloodline_api.parsers.repo_parser import RepoParser
+from bloodline_api.parsers.sql_table_extractor import extract_column_lineage_with_error
 from bloodline_api.parsers.sql_table_extractor import extract_tables_with_error
 from bloodline_api.services.graph_builder import build_table_flows
 
@@ -272,6 +273,7 @@ class LineageQueryService:
 
         db.execute(delete(ObjectMetadataColumn))
         db.execute(delete(ObjectMetadata))
+        db.execute(delete(FieldEdge))
         db.execute(delete(Edge))
         db.execute(delete(Node))
         db.flush()
@@ -418,6 +420,17 @@ class LineageQueryService:
                     )
                     fact_edges.append(("READS", node.key, table_node.key))
                 fact_edges.append(("WRITES", node.key, node.key))
+                # Column-level lineage for views
+                self._persist_field_edges_from_sql(
+                    db,
+                    scan_run=scan_run,
+                    sql=metadata.view_definition,
+                    actor_key=node.key,
+                    object_nodes=object_nodes,
+                    metadata_aliases=metadata_aliases,
+                    source_type="metadata",
+                    file_path=f"{metadata.database_name}.{metadata.object_name}",
+                )
             else:
                 metadata.view_parse_status = "failed"
                 metadata.view_parse_error = parse_error or "无法从 VIEW_DEFINITION 中识别底层对象，请检查 SQL 方言或定义内容。"
@@ -468,6 +481,266 @@ class LineageQueryService:
                 alias_nodes[bare_name] = nodes[0]
 
         return alias_nodes
+
+    def _load_finereport_datasets(
+        self,
+        db: Session,
+        *,
+        object_nodes: dict[str, Node],
+        metadata_aliases: dict[str, Node],
+        fact_edges: list[tuple[str, str, str]],
+        scan_run: ScanRun,
+    ) -> None:
+        """Load FineReport dataset lineage from frms.comm_finereport_record_details."""
+
+        mysql_dsn = "mysql+pymysql://root:root@127.0.0.1:3306/frms"
+        try:
+            engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
+            with engine.connect() as connection:
+                rows = connection.execute(
+                    text("SELECT dataset_name, data_sql FROM comm_finereport_record_details")
+                ).mappings()
+                for row in rows:
+                    dataset_name = row["dataset_name"]
+                    data_sql = row["data_sql"]
+                    if not dataset_name or not data_sql:
+                        continue
+                    read_tables, _write_tables, error = extract_tables_with_error(data_sql)
+                    if error:
+                        self._record_scan_failure(
+                            db,
+                            scan_run=scan_run,
+                            source_type="finereport",
+                            file_path=dataset_name,
+                            failure_type="sql_parse_error",
+                            message=error,
+                        )
+                        continue
+                    dataset_node = self._get_or_create_object_node(
+                        db,
+                        name=dataset_name,
+                        object_type="report_dataset",
+                    )
+                    object_nodes[dataset_node.key] = dataset_node
+                    for table_name in read_tables:
+                        table_node = self._resolve_object_node(
+                            db,
+                            name=table_name,
+                            object_type="data_table",
+                            object_nodes=object_nodes,
+                            metadata_aliases=metadata_aliases,
+                        )
+                        self._ensure_edge(
+                            db,
+                            "FLOWS_TO",
+                            table_node.id,
+                            dataset_node.id,
+                            is_derived=True,
+                            payload={"source": "finereport"},
+                        )
+                        fact_edges.append(("READS", f"finereport:{dataset_name}", table_node.key))
+            engine.dispose()
+        except Exception as exc:
+            self._record_scan_failure(
+                db,
+                scan_run=scan_run,
+                source_type="finereport",
+                file_path=mysql_dsn,
+                failure_type=exc.__class__.__name__,
+                message=str(exc),
+            )
+
+    def _load_api_page_mappings(
+        self,
+        db: Session,
+        *,
+        object_nodes: dict[str, Node],
+        scan_run: ScanRun,
+    ) -> None:
+        """Load API-to-page mappings from frms.comm_permission_mapping."""
+
+        mysql_dsn = "mysql+pymysql://root:root@127.0.0.1:3306/frms"
+        try:
+            engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
+            with engine.connect() as connection:
+                rows = connection.execute(
+                    text(
+                        """
+                        SELECT
+                            first_level_menu,
+                            second_level_menu,
+                            third_level_menu,
+                            fourth_level_menu,
+                            menu_name,
+                            menu_url,
+                            page_name,
+                            page_type,
+                            api_url,
+                            api_function,
+                            request_method
+                        FROM comm_permission_mapping
+                        WHERE delete_status = 0
+                        """
+                    )
+                ).mappings()
+
+                for row in rows:
+                    api_url = row["api_url"]
+                    if not api_url or api_url == "(无API调用)":
+                        continue
+
+                    normalized_url = api_url.strip()
+                    if normalized_url.startswith("/"):
+                        normalized_url = normalized_url[1:]
+
+                    request_method = row["request_method"]
+                    if (
+                        request_method
+                        and request_method.strip()
+                        and request_method.strip() != "-"
+                    ):
+                        api_name = f"{request_method.strip().upper()} {normalized_url}"
+                    else:
+                        api_name = normalized_url
+
+                    api_key = f"api:{api_name}"
+
+                    menu_parts = [
+                        row["first_level_menu"],
+                        row["second_level_menu"],
+                        row["third_level_menu"],
+                        row["fourth_level_menu"],
+                        row["menu_name"],
+                    ]
+                    menu_path = " > ".join(
+                        str(p).strip() for p in menu_parts if p and str(p).strip()
+                    )
+
+                    if not menu_path:
+                        continue
+
+                    page_key = f"page:{menu_path}"
+                    page_name = menu_path
+
+                    api_node = self._get_or_create_node(
+                        db, "api_endpoint", api_key, api_name
+                    )
+                    api_payload = dict(api_node.payload or {})
+                    api_payload["object_type"] = "api_endpoint"
+                    api_payload.setdefault("source", "permission_mapping")
+                    api_node.payload = api_payload
+                    object_nodes[api_node.key] = api_node
+
+                    page_node = db.scalar(select(Node).where(Node.key == page_key))
+                    if page_node is None:
+                        page_node = Node(
+                            type="web_page",
+                            key=page_key,
+                            name=page_name,
+                            payload={
+                                "source": "permission_mapping",
+                                "object_type": "web_page",
+                                "menu_url": row["menu_url"],
+                                "page_name": row["page_name"],
+                                "page_type": row["page_type"],
+                                "api_function": row["api_function"],
+                            },
+                        )
+                        db.add(page_node)
+                        db.flush()
+                    object_nodes[page_node.key] = page_node
+
+                    self._ensure_edge(
+                        db,
+                        "FLOWS_TO",
+                        api_node.id,
+                        page_node.id,
+                        is_derived=True,
+                        payload={"source": "permission_mapping"},
+                    )
+
+            engine.dispose()
+        except Exception as exc:
+            self._record_scan_failure(
+                db,
+                scan_run=scan_run,
+                source_type="permission_mapping",
+                file_path=mysql_dsn,
+                failure_type=exc.__class__.__name__,
+                message=str(exc),
+            )
+
+    def _load_finereport_config_lineage(
+        self,
+        db: Session,
+        *,
+        object_nodes: dict[str, Node],
+        scan_run: ScanRun,
+    ) -> None:
+        """Load FineReport file-to-menu lineage from frms.COMM_FINEREPORT_CONFIG."""
+
+        mysql_dsn = "mysql+pymysql://root:root@127.0.0.1:3306/frms"
+        try:
+            engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
+            with engine.connect() as connection:
+                rows = connection.execute(
+                    text(
+                        """
+                        SELECT reportpath_tidb, modulepath
+                        FROM COMM_FINEREPORT_CONFIG
+                        WHERE reportpath_tidb IS NOT NULL AND reportpath_tidb != ''
+                        """
+                    )
+                ).mappings()
+
+                for row in rows:
+                    report_path = row["reportpath_tidb"].strip()
+                    menu_path = row["modulepath"].strip()
+                    if not report_path or not menu_path:
+                        continue
+
+                    file_key = f"finereport_file:{report_path}"
+                    file_name = report_path
+                    menu_key = f"menu:{menu_path}"
+                    menu_name = menu_path
+
+                    file_node = self._get_or_create_node(
+                        db, "report_file", file_key, file_name
+                    )
+                    file_payload = dict(file_node.payload or {})
+                    file_payload["object_type"] = "report_file"
+                    file_payload.setdefault("source", "finereport_config")
+                    file_node.payload = file_payload
+                    object_nodes[file_node.key] = file_node
+
+                    menu_node = self._get_or_create_node(
+                        db, "menu", menu_key, menu_name
+                    )
+                    menu_payload = dict(menu_node.payload or {})
+                    menu_payload["object_type"] = "menu"
+                    menu_payload.setdefault("source", "finereport_config")
+                    menu_node.payload = menu_payload
+                    object_nodes[menu_node.key] = menu_node
+
+                    self._ensure_edge(
+                        db,
+                        "FLOWS_TO",
+                        file_node.id,
+                        menu_node.id,
+                        is_derived=True,
+                        payload={"source": "finereport_config"},
+                    )
+
+            engine.dispose()
+        except Exception as exc:
+            self._record_scan_failure(
+                db,
+                scan_run=scan_run,
+                source_type="finereport_config",
+                file_path=mysql_dsn,
+                failure_type=exc.__class__.__name__,
+                message=str(exc),
+            )
 
     def _resolve_object_node(
         self,
@@ -531,6 +804,95 @@ class LineageQueryService:
         db.add(edge)
         db.flush()
         return edge
+
+    def _ensure_field_edge(
+        self,
+        db: Session,
+        src_node_id: int,
+        dst_node_id: int,
+        src_field: str,
+        dst_field: str,
+        *,
+        edge_id: int | None = None,
+        is_derived: bool = False,
+        payload: dict[str, Any] | None = None,
+    ) -> FieldEdge:
+        """Ensure a unique field-level edge exists for the given mapping."""
+
+        field_edge = db.scalar(
+            select(FieldEdge).where(
+                FieldEdge.src_node_id == src_node_id,
+                FieldEdge.dst_node_id == dst_node_id,
+                FieldEdge.src_field == src_field,
+                FieldEdge.dst_field == dst_field,
+                FieldEdge.is_derived == is_derived,
+            )
+        )
+        if field_edge is not None:
+            return field_edge
+
+        field_edge = FieldEdge(
+            edge_id=edge_id,
+            src_node_id=src_node_id,
+            dst_node_id=dst_node_id,
+            src_field=src_field,
+            dst_field=dst_field,
+            is_derived=is_derived,
+            payload=payload or {},
+        )
+        db.add(field_edge)
+        db.flush()
+        return field_edge
+
+    def _persist_field_edges_from_sql(
+        self,
+        db: Session,
+        *,
+        scan_run: ScanRun,
+        sql: str,
+        actor_key: str,
+        object_nodes: dict[str, Node],
+        metadata_aliases: dict[str, Node],
+        source_type: str,
+        file_path: str,
+    ) -> None:
+        """Parse one SQL fragment for column lineage and persist any explicit field mappings."""
+
+        field_mappings, parse_error = extract_column_lineage_with_error(sql)
+        if parse_error:
+            self._record_scan_failure(
+                db,
+                scan_run=scan_run,
+                source_type=source_type,
+                file_path=file_path,
+                failure_type="column_lineage_parse_error",
+                message=parse_error,
+                object_key=actor_key,
+                sql_snippet=sql,
+            )
+        for src_table, src_field, dst_table, dst_field in field_mappings:
+            src_node = self._resolve_object_node(
+                db,
+                name=src_table,
+                object_type="data_table",
+                object_nodes=object_nodes,
+                metadata_aliases=metadata_aliases,
+            )
+            dst_node = self._resolve_object_node(
+                db,
+                name=dst_table,
+                object_type="data_table",
+                object_nodes=object_nodes,
+                metadata_aliases=metadata_aliases,
+            )
+            self._ensure_field_edge(
+                db,
+                src_node_id=src_node.id,
+                dst_node_id=dst_node.id,
+                src_field=src_field,
+                dst_field=dst_field,
+                payload={"actor": actor_key, "source_type": source_type},
+            )
 
     def _collect_actor_table_keys(self, db: Session, actor: Node) -> list[str]:
         """Collect stable object keys touched by one job, transformation, or Java module."""
@@ -801,7 +1163,7 @@ class LineageQueryService:
                         table_node.id,
                         payload={"entry": entry_key, "source": "repo"},
                     )
-                    fact_edges.append(("READS", entry_key, table_node.key))
+                    fact_edges.append(("READS", f"job:{entry_key}", table_node.key))
 
             for entry_key, object_refs in repo_result.job_writes.items():
                 job_name = entry_key.split("::", 1)[0]
@@ -823,7 +1185,35 @@ class LineageQueryService:
                         table_node.id,
                         payload={"entry": entry_key, "source": "repo"},
                     )
-                    fact_edges.append(("WRITES", entry_key, table_node.key))
+                    fact_edges.append(("WRITES", f"job:{entry_key}", table_node.key))
+
+            # Field-level lineage from repo SQL steps and job entries
+            for step_key, sql in repo_result.step_sqls.items():
+                transformation_name = step_key.split("::", 1)[0]
+                actor_key = f"transformation:{transformation_name}"
+                self._persist_field_edges_from_sql(
+                    db,
+                    scan_run=scan_run,
+                    sql=sql,
+                    actor_key=actor_key,
+                    object_nodes=object_nodes,
+                    metadata_aliases=metadata_aliases,
+                    source_type="kettle",
+                    file_path=str(repo_file),
+                )
+            for entry_key, sql in repo_result.job_sqls.items():
+                job_name = entry_key.split("::", 1)[0]
+                actor_key = f"job:{job_name}"
+                self._persist_field_edges_from_sql(
+                    db,
+                    scan_run=scan_run,
+                    sql=sql,
+                    actor_key=actor_key,
+                    object_nodes=object_nodes,
+                    metadata_aliases=metadata_aliases,
+                    source_type="kettle",
+                    file_path=str(repo_file),
+                )
 
         java_files: list[Path] = []
         for java_root in _resolve_java_roots(_normalized_input_values(java_source_roots, java_source_root)):
@@ -978,6 +1368,48 @@ class LineageQueryService:
                     )
                     self._ensure_edge(db, "WRITES", api_node.id, table_node.id)
 
+            # Field-level lineage from direct Java SQL statements
+            for java_result in java_results:
+                java_node = self._get_or_create_node(
+                    db,
+                    "java_module",
+                    f"java_module:{java_result.module_name}",
+                    java_result.module_name,
+                )
+                for statement in java_result.statements:
+                    if not statement.sql_snippet:
+                        continue
+                    self._persist_field_edges_from_sql(
+                        db,
+                        scan_run=scan_run,
+                        sql=statement.sql_snippet,
+                        actor_key=java_node.key,
+                        object_nodes=object_nodes,
+                        metadata_aliases=metadata_aliases,
+                        source_type="java",
+                        file_path=java_result.module_name,
+                    )
+
+        self._load_finereport_datasets(
+            db,
+            object_nodes=object_nodes,
+            metadata_aliases=metadata_aliases,
+            fact_edges=fact_edges,
+            scan_run=scan_run,
+        )
+
+        self._load_api_page_mappings(
+            db,
+            object_nodes=object_nodes,
+            scan_run=scan_run,
+        )
+
+        self._load_finereport_config_lineage(
+            db,
+            object_nodes=object_nodes,
+            scan_run=scan_run,
+        )
+
         table_flows = build_table_flows(fact_edges)
         for source_key, target_key in table_flows:
             source_table = object_nodes.get(source_key)
@@ -995,7 +1427,7 @@ class LineageQueryService:
     def search_tables(self, db: Session, query: str = "") -> list[Node]:
         """Search table-like objects and API endpoints by key or name for the frontend search page."""
 
-        stmt = select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint")))
+        stmt = select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint", "menu", "report_file")))
         if query:
             pattern = f"%{query}%"
             stmt = stmt.where((Node.key.ilike(pattern)) | (Node.name.ilike(pattern)))
@@ -1315,6 +1747,56 @@ class LineageQueryService:
         impacted_tables = self._collect_downstream_tables(db, table.id, max_hops=3)
         lineage["impacted_tables"] = impacted_tables
         return lineage
+
+    def get_field_lineage(self, db: Session, table_key: str) -> dict[str, Any] | None:
+        """Return field-level upstream/downstream lineage for one table."""
+
+        table = db.scalar(
+            select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint")), Node.key == table_key)
+        )
+        if table is None:
+            return None
+
+        upstream_fields: list[dict[str, Any]] = []
+        downstream_fields: list[dict[str, Any]] = []
+
+        upstream_rows = db.execute(
+            select(FieldEdge, Node)
+            .join(Node, Node.id == FieldEdge.src_node_id)
+            .where(FieldEdge.dst_node_id == table.id)
+            .order_by(FieldEdge.dst_field.asc(), Node.name.asc(), FieldEdge.src_field.asc())
+        ).all()
+        for field_edge, src_node in upstream_rows:
+            upstream_fields.append(
+                {
+                    "field": field_edge.dst_field,
+                    "source_table": _serialize_object(src_node),
+                    "source_field": field_edge.src_field,
+                    "is_derived": field_edge.is_derived,
+                }
+            )
+
+        downstream_rows = db.execute(
+            select(FieldEdge, Node)
+            .join(Node, Node.id == FieldEdge.dst_node_id)
+            .where(FieldEdge.src_node_id == table.id)
+            .order_by(FieldEdge.src_field.asc(), Node.name.asc(), FieldEdge.dst_field.asc())
+        ).all()
+        for field_edge, dst_node in downstream_rows:
+            downstream_fields.append(
+                {
+                    "field": field_edge.src_field,
+                    "target_table": _serialize_object(dst_node),
+                    "target_field": field_edge.dst_field,
+                    "is_derived": field_edge.is_derived,
+                }
+            )
+
+        return {
+            "table": _serialize_object(table),
+            "upstream_fields": upstream_fields,
+            "downstream_fields": downstream_fields,
+        }
 
     def _collect_downstream_tables(
         self, db: Session, start_table_id: int, *, max_hops: int = 3

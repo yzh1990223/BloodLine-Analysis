@@ -30,6 +30,12 @@ function useBreadcrumbs() {
       { label: "闭环分析" },
     ] satisfies BreadcrumbItem[];
   }
+  if (location.pathname === "/scheduling") {
+    return [
+      { label: "总览", to: "/" },
+      { label: "调度查看" },
+    ] satisfies BreadcrumbItem[];
+  }
   if (location.pathname === "/scan-failures") {
     return [
       { label: "总览", to: "/" },
@@ -73,6 +79,7 @@ export function AppLayout() {
           <Link to="/">总览</Link>
           <Link to="/#table-search">表搜索</Link>
           <Link to="/analysis/cycles">闭环分析</Link>
+          <Link to="/scheduling">调度查看</Link>
           <Link to="/scan-failures">失败汇总</Link>
         </nav>
         <div className="topbar-location" aria-label="面包屑">

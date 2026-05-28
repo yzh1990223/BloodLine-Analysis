@@ -4,6 +4,8 @@ const OBJECT_TYPE_LABELS: Record<string, string> = {
   source_file: "源文件",
   table_view: "表视图",
   api_endpoint: "API接口",
+  menu: "菜单",
+  report_file: "帆软文件",
 };
 
 export function objectTypeLabel(objectType: string | undefined): string {

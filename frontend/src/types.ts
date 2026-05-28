@@ -71,6 +71,21 @@ export interface TableImpactResponse extends TableLineageResponse {
   impacted_tables: ImpactedTable[];
 }
 
+export interface FieldMapping {
+  field: string;
+  source_table?: TableSummary;
+  source_field?: string;
+  target_table?: TableSummary;
+  target_field?: string;
+  is_derived?: boolean;
+}
+
+export interface FieldLineageResponse {
+  table: TableSummary | null;
+  upstream_fields: FieldMapping[];
+  downstream_fields: FieldMapping[];
+}
+
 export interface SearchResponse {
   items: TableSummary[];
 }
@@ -162,4 +177,15 @@ export interface CreateScanResponse {
   scan_run_id: number;
   status: string;
   inputs: ScanRequestPayload;
+}
+
+export interface SchedulingLineageItem {
+  source_name: string;
+  target_name: string;
+  actor_type: string;
+  actor_name: string;
+}
+
+export interface SchedulingLineageResponse {
+  items: SchedulingLineageItem[];
 }

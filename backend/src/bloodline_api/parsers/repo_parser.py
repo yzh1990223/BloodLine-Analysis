@@ -43,8 +43,10 @@ class RepoParseResult:
     job_transformation_calls: list[JobTransformationCall] = field(default_factory=list)
     step_reads: dict[str, list[ObjectRef]] = field(default_factory=dict)
     step_writes: dict[str, list[ObjectRef]] = field(default_factory=dict)
+    step_sqls: dict[str, str] = field(default_factory=dict)
     job_reads: dict[str, list[ObjectRef]] = field(default_factory=dict)
     job_writes: dict[str, list[ObjectRef]] = field(default_factory=dict)
+    job_sqls: dict[str, str] = field(default_factory=dict)
     parse_failures: list["RepoSqlParseFailure"] = field(default_factory=list)
 
 
@@ -283,6 +285,9 @@ class RepoParser:
                 entry_name = entry.findtext("name", default="unknown_sql_entry").strip()
                 entry_key = _job_entry_key(name, entry_name)
                 reads, writes, failures = _job_sql_objects(entry)
+                entry_sql = entry.findtext("sql", default="").strip()
+                if entry_sql:
+                    result.job_sqls[entry_key] = entry_sql
                 if reads:
                     result.job_reads[entry_key] = _sorted_objects(reads)
                 if writes:
@@ -309,6 +314,10 @@ class RepoParser:
                 reads, read_error, read_sql = _read_objects_for_step(step)
                 writes, write_error, write_sql = _write_objects_for_step(step)
                 step_key = _step_key(transformation_name, step_name)
+                if read_sql:
+                    result.step_sqls[step_key] = read_sql
+                elif write_sql:
+                    result.step_sqls[step_key] = write_sql
                 if reads:
                     result.step_reads[step_key] = _sorted_objects(reads)
                 if writes:

@@ -975,6 +975,250 @@ small {
   color: #667085;
 }
 
+/* Detail page tabs */
+.detail-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid #e4e7ec;
+  margin-bottom: 16px;
+}
+
+.detail-tab {
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #667085;
+}
+
+.detail-tab:hover {
+  color: #101828;
+}
+
+.detail-tab.active {
+  color: #b54708;
+  border-bottom-color: #b54708;
+}
+
+.export-button {
+  padding: 8px 16px;
+  background: #b54708;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.export-button:hover {
+  background: #93370d;
+}
+
+.scheduling-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.scheduling-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #18445e;
+}
+
+.scheduling-filters input {
+  padding: 12px 14px;
+  border: 1px solid #d7dce2;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.scheduling-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.scheduling-table th,
+.scheduling-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.scheduling-table th {
+  font-weight: 700;
+  color: #18445e;
+  background: #f9fafb;
+}
+
+.scheduling-table tr:hover {
+  background: #f6f7f9;
+}
+
+.sync-button {
+  padding: 8px 16px;
+  background: #0f5a8a;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.sync-button:hover {
+  background: #0d4a70;
+}
+
+/* Metadata summary */
+.metadata-summary {
+  background: #f9fafb;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.metadata-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #f2f4f7;
+}
+
+.metadata-row:last-child {
+  border-bottom: none;
+}
+
+.metadata-label {
+  color: #667085;
+  font-weight: 500;
+}
+
+.metadata-value {
+  color: #101828;
+}
+
+.metadata-sql {
+  background: #101828;
+  color: #f2f4f7;
+  padding: 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.error-text {
+  color: #b42318;
+}
+
+/* API diagnostics */
+.api-diagnostics-list {
+  background: #f9fafb;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.diagnostic-item-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+
+.diagnostic-item {
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.diagnostic-item-call {
+  margin: 0 0 4px;
+  font-weight: 600;
+  color: #101828;
+}
+
+.diagnostic-item-reason {
+  margin: 0;
+  color: #667085;
+  font-size: 13px;
+}
+
+/* Field lineage panel */
+.field-lineage-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.field-lineage-card {
+  background: #fff;
+  border: 1px solid #e4e7ec;
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+
+.field-lineage-field-name {
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #101828;
+}
+
+.field-lineage-section {
+  margin-top: 10px;
+}
+
+.field-lineage-label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 500;
+  color: #667085;
+  margin-bottom: 6px;
+}
+
+.field-lineage-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.field-lineage-item {
+  padding: 6px 0;
+  font-size: 14px;
+  color: #344054;
+}
+
+.field-lineage-table {
+  font-weight: 500;
+}
+
+.field-lineage-dot {
+  color: #667085;
+}
+
+.field-lineage-column {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: #b54708;
+}
+
+.field-lineage-derived {
+  margin-left: 6px;
+  font-size: 12px;
+  color: #667085;
+}
+
 @media (max-width: 800px) {
   .topbar {
     grid-template-columns: 1fr;

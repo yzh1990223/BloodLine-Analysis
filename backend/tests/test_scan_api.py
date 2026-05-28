@@ -318,8 +318,8 @@ def test_scan_records_repo_and_java_sql_parse_failures_without_aborting(client, 
     failures_response = client.get("/api/scan-runs/latest/failures")
     assert failures_response.status_code == 200
     body = failures_response.json()
-    assert body["summary"]["failure_count"] == 2
-    assert body["summary"]["source_counts"] == {"kettle": 1, "java": 1, "metadata": 0}
+    assert body["summary"]["failure_count"] == 4
+    assert body["summary"]["source_counts"] == {"kettle": 2, "java": 2, "metadata": 0}
 
     groups = {item["source_type"]: item for item in body["groups"]}
     kettle_failure = groups["kettle"]["files"][0]["failures"][0]

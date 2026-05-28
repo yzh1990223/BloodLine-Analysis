@@ -2,6 +2,7 @@ import {
   ConnectedLineageResponse,
   CreateScanResponse,
   CycleGroupSummaryResponse,
+  FieldLineageResponse,
   LatestScanRunResponse,
   ScanRequestPayload,
   ScanFailureSummaryResponse,
@@ -62,6 +63,13 @@ export function fetchTableImpact(tableKey: string): Promise<TableImpactResponse>
   );
 }
 
+export function fetchFieldLineage(tableKey: string): Promise<FieldLineageResponse> {
+  /** Load field-level lineage for one table. */
+  return requestJson<FieldLineageResponse>(
+    `/api/tables/${encodeURIComponent(tableKey)}/field-lineage`,
+  );
+}
+
 export function fetchLatestScanRun(): Promise<LatestScanRunResponse> {
   /** Load the most recent scan run for the scan control panel. */
   return requestJson<LatestScanRunResponse>("/api/scan-runs/latest");
@@ -86,4 +94,23 @@ export function fetchCycleGroups(): Promise<CycleGroupSummaryResponse> {
 export function fetchLatestScanFailures(): Promise<ScanFailureSummaryResponse> {
   /** Load the latest scan failure summary grouped by source and file. */
   return requestJson<ScanFailureSummaryResponse>("/api/scan-runs/latest/failures");
+}
+
+export function syncLineageToMySQL(): Promise<{ success: boolean; inserted: number; message: string }> {
+  /** Sync table-level lineage to MySQL dm.t_relationship. */
+  return requestJson<{ success: boolean; inserted: number; message: string }>("/api/sync/lineage/mysql", {
+    method: "POST",
+  });
+}
+
+export function fetchSchedulingLineage(
+  source?: string,
+  target?: string,
+): Promise<SchedulingLineageResponse> {
+  /** Query scheduling lineage report with optional source/target filters. */
+  const params = new URLSearchParams();
+  if (source) params.set("source", source);
+  if (target) params.set("target", target);
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return requestJson<SchedulingLineageResponse>(`/api/scheduling/lineage${suffix}`);
 }

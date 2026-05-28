@@ -119,6 +119,43 @@ export function TableSearchPage() {
 
       <div className="page-actions">
         <Link to="/scan-failures">查看最近扫描失败汇总</Link>
+        <button
+          type="button"
+          className="export-button"
+          onClick={() => {
+            fetch("/api/export/lineage/excel")
+              .then((res) => {
+                if (!res.ok) throw new Error("导出失败");
+                return res.blob();
+              })
+              .then((blob) => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = "lineage.xlsx";
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                window.URL.revokeObjectURL(url);
+              })
+              .catch((err) => alert(err instanceof Error ? err.message : "导出失败"));
+          }}
+        >
+          导出血缘
+        </button>
+        <button
+          type="button"
+          className="sync-button"
+          onClick={() => {
+            import("../api").then(({ syncLineageToMySQL }) => {
+              syncLineageToMySQL()
+                .then((res) => alert(res.message))
+                .catch((err) => alert(err instanceof Error ? err.message : "同步失败"));
+            });
+          }}
+        >
+          血缘同步
+        </button>
       </div>
 
       <section className="panel">
@@ -167,6 +204,18 @@ export function TableSearchPage() {
               value={catalogItems.filter((item) => item.object_type === "api_endpoint").length}
               to="/objects?type=api_endpoint"
               linkLabel="查看 API 接口对象列表"
+            />
+            <OverviewStatCard
+              label="菜单"
+              value={catalogItems.filter((item) => item.object_type === "menu").length}
+              to="/objects?type=menu"
+              linkLabel="查看菜单对象列表"
+            />
+            <OverviewStatCard
+              label="帆软文件"
+              value={catalogItems.filter((item) => item.object_type === "report_file").length}
+              to="/objects?type=report_file"
+              linkLabel="查看帆软文件对象列表"
             />
             <OverviewStatCard
               label="闭环分析"

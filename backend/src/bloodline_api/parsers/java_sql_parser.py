@@ -49,6 +49,7 @@ class JavaSqlStatement:
     statement_id: str
     read_tables: list[str]
     write_tables: list[str]
+    sql_snippet: str = ""
 
 
 @dataclass(slots=True)
@@ -126,6 +127,7 @@ class JavaSqlParser:
                     statement_id=statement_id,
                     read_tables=sorted(sql_reads),
                     write_tables=sorted(sql_writes),
+                    sql_snippet=sql,
                 )
             )
             for scope in method_scopes:
@@ -157,6 +159,7 @@ class JavaSqlParser:
                     statement_id=statement_id,
                     read_tables=sorted(sql_reads),
                     write_tables=sorted(sql_writes),
+                    sql_snippet=annotated.sql,
                 )
             )
             methods.setdefault(
