@@ -498,7 +498,7 @@ class LineageQueryService:
             engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
             with engine.connect() as connection:
                 rows = connection.execute(
-                    text("SELECT dataset_name, data_sql FROM comm_finereport_record_details")
+                    text("SELECT dataset_name, data_sql FROM frms.comm_finereport_record_details")
                 ).mappings()
                 for row in rows:
                     dataset_name = row["dataset_name"]
@@ -578,7 +578,7 @@ class LineageQueryService:
                             api_url,
                             api_function,
                             request_method
-                        FROM comm_permission_mapping
+                        FROM frms.comm_permission_mapping
                         WHERE delete_status = 0
                         """
                     )
@@ -687,7 +687,7 @@ class LineageQueryService:
                     text(
                         """
                         SELECT reportpath_tidb, modulepath
-                        FROM COMM_FINEREPORT_CONFIG
+                        FROM frms.COMM_FINEREPORT_CONFIG
                         WHERE reportpath_tidb IS NOT NULL AND reportpath_tidb != ''
                         """
                     )
