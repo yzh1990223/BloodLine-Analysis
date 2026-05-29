@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse, urlunparse
 
 from sqlalchemy import create_engine, delete, func, select, text
 from sqlalchemy.orm import Session
@@ -305,6 +306,14 @@ class LineageQueryService:
         db.flush()
         return failure
 
+    def _frms_dsn(self, base_dsn: str | None) -> str:
+        """Derive frms database DSN from the user-provided MySQL DSN."""
+
+        if not base_dsn:
+            return "mysql+pymysql://root:root@127.0.0.1:3306/frms"
+        parsed = urlparse(base_dsn)
+        return urlunparse(parsed._replace(path="/frms"))
+
     def _get_or_create_node(self, db: Session, node_type: str, key: str, name: str) -> Node:
         """Upsert a graph node by stable business key."""
 
@@ -490,10 +499,11 @@ class LineageQueryService:
         metadata_aliases: dict[str, Node],
         fact_edges: list[tuple[str, str, str]],
         scan_run: ScanRun,
+        mysql_dsn: str | None = None,
     ) -> None:
         """Load FineReport dataset lineage from frms.comm_finereport_record_details."""
 
-        mysql_dsn = "mysql+pymysql://root:root@127.0.0.1:3306/frms"
+        mysql_dsn = self._frms_dsn(mysql_dsn)
         try:
             engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
             with engine.connect() as connection:
@@ -556,10 +566,11 @@ class LineageQueryService:
         *,
         object_nodes: dict[str, Node],
         scan_run: ScanRun,
+        mysql_dsn: str | None = None,
     ) -> None:
         """Load API-to-page mappings from frms.comm_permission_mapping."""
 
-        mysql_dsn = "mysql+pymysql://root:root@127.0.0.1:3306/frms"
+        mysql_dsn = self._frms_dsn(mysql_dsn)
         try:
             engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
             with engine.connect() as connection:
@@ -676,10 +687,11 @@ class LineageQueryService:
         *,
         object_nodes: dict[str, Node],
         scan_run: ScanRun,
+        mysql_dsn: str | None = None,
     ) -> None:
         """Load FineReport file-to-menu lineage from frms.COMM_FINEREPORT_CONFIG."""
 
-        mysql_dsn = "mysql+pymysql://root:root@127.0.0.1:3306/frms"
+        mysql_dsn = self._frms_dsn(mysql_dsn)
         try:
             engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
             with engine.connect() as connection:
@@ -1396,18 +1408,21 @@ class LineageQueryService:
             metadata_aliases=metadata_aliases,
             fact_edges=fact_edges,
             scan_run=scan_run,
+            mysql_dsn=mysql_dsn,
         )
 
         self._load_api_page_mappings(
             db,
             object_nodes=object_nodes,
             scan_run=scan_run,
+            mysql_dsn=mysql_dsn,
         )
 
         self._load_finereport_config_lineage(
             db,
             object_nodes=object_nodes,
             scan_run=scan_run,
+            mysql_dsn=mysql_dsn,
         )
 
         table_flows = build_table_flows(fact_edges)
