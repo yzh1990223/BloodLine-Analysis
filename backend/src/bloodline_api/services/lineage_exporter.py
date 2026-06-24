@@ -325,7 +325,7 @@ def sync_lineage_to_mysql(db: Session, mysql_dsn: str) -> dict[str, int]:
                 continue
 
             mysql_db.execute(
-                text("""
+                text(f"""
                 INSERT INTO `{_TARGET_SCHEMA}`.`t_relationship` (
                     src_obj_type, src_db_name, src_schema, src_obj_enname, src_obj_chnname,
                     src_obj_sys, src_obj_dep, src_obj_memo, src_obj_application,
@@ -399,7 +399,7 @@ def build_excel_export(db: Session, mysql_dsn: str | None = None) -> bytes:
         mysql_db = MySQLSession()
         try:
             rows = mysql_db.execute(
-                text("""
+                text(f"""
                     SELECT
                         src_obj_type, src_db_name, src_schema, src_obj_enname, src_obj_chnname,
                         src_obj_sys, src_obj_dep, src_obj_memo, src_obj_application,
