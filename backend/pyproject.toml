@@ -11,6 +11,7 @@ dependencies = [
   "sqlglot",
   "pymysql",
   "cryptography",
+  "openpyxl",
 ]
 
 [project.optional-dependencies]
