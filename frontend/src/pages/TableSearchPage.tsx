@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { fetchCycleGroups, fetchTableLineage, searchTables } from "../api";
+import { fetchCycleGroups, fetchLatestScanRun, fetchTableLineage, searchTables } from "../api";
 import { ObjectTypeBadge } from "../components/ObjectTypeBadge";
 import { OverviewGraph } from "../components/OverviewGraph";
 import { ScanControlPanel } from "../components/ScanControlPanel";
 import { SearchBar } from "../components/SearchBar";
-import { CycleGroupSummaryResponse, TableLineageResponse, TableSummary } from "../types";
+import { CycleGroupSummaryResponse, LatestScanRunResponse, TableLineageResponse, TableSummary } from "../types";
 
 interface OverviewStatCardProps {
   label: string;
@@ -36,6 +36,8 @@ export function TableSearchPage() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [latestScanRun, setLatestScanRun] = useState<LatestScanRunResponse["scan_run"]>(null);
   const [cycleSummary, setCycleSummary] = useState<CycleGroupSummaryResponse["summary"]>({
     group_count: 0,
     table_count: 0,
@@ -46,18 +48,20 @@ export function TableSearchPage() {
     setCatalogLoading(true);
     setCatalogError(null);
     try {
-      const [catalogResponse, cycleResponse] = await Promise.all([
+      const [catalogResponse, cycleResponse, latestResponse] = await Promise.all([
         searchTables(""),
         fetchCycleGroups().catch(() => ({
           summary: { group_count: 0, table_count: 0, edge_count: 0 },
           items: [],
         })),
+        fetchLatestScanRun().catch(() => ({ scan_run: null })),
       ]);
       if (signal?.cancelled) {
         return;
       }
       setCatalogItems(catalogResponse.items);
       setCycleSummary(cycleResponse.summary);
+      setLatestScanRun(latestResponse.scan_run);
     } catch (err) {
       if (signal?.cancelled) {
         return;
@@ -150,15 +154,27 @@ export function TableSearchPage() {
         <button
           type="button"
           className="sync-button"
-          onClick={() => {
-            import("../api").then(({ syncLineageToMySQL }) => {
-              syncLineageToMySQL(latestScanRun?.inputs?.mysql_dsn)
-                .then((res) => alert(res.message))
-                .catch((err) => alert(err instanceof Error ? err.message : "同步失败"));
-            });
+          disabled={syncing}
+          onClick={async () => {
+            setSyncing(true);
+            try {
+              const { syncLineageToMySQL } = await import("../api");
+              const dsn = latestScanRun?.inputs?.mysql_dsn;
+              if (!dsn) {
+                alert("未配置 MySQL DSN，请先在高级配置中填写");
+                return;
+              }
+              const res = await syncLineageToMySQL(dsn);
+              alert(res.message);
+            } catch (err) {
+              console.error("血缘同步失败:", err);
+              alert(err instanceof Error ? err.message : "同步失败，请查看浏览器控制台");
+            } finally {
+              setSyncing(false);
+            }
           }}
         >
-          血缘同步
+          {syncing ? "同步中..." : "血缘同步"}
         </button>
       </div>
 
