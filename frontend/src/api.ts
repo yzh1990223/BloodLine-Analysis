@@ -96,10 +96,13 @@ export function fetchLatestScanFailures(): Promise<ScanFailureSummaryResponse> {
   return requestJson<ScanFailureSummaryResponse>("/api/scan-runs/latest/failures");
 }
 
-export function syncLineageToMySQL(): Promise<{ success: boolean; inserted: number; message: string }> {
-  /** Sync table-level lineage to MySQL dm.t_relationship. */
+export function syncLineageToMySQL(
+  mysql_dsn?: string,
+): Promise<{ success: boolean; inserted: number; message: string }> {
+  /** Sync table-level lineage to MySQL t_relationship. */
   return requestJson<{ success: boolean; inserted: number; message: string }>("/api/sync/lineage/mysql", {
     method: "POST",
+    body: JSON.stringify({ mysql_dsn }),
   });
 }
 

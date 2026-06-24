@@ -148,7 +148,7 @@ export function TableSearchPage() {
           className="sync-button"
           onClick={() => {
             import("../api").then(({ syncLineageToMySQL }) => {
-              syncLineageToMySQL()
+              syncLineageToMySQL(latestScanRun?.inputs?.mysql_dsn)
                 .then((res) => alert(res.message))
                 .catch((err) => alert(err instanceof Error ? err.message : "同步失败"));
             });

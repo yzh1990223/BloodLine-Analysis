@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from sqlalchemy import select
@@ -109,16 +110,20 @@ def export_lineage_excel(db: Session = Depends(get_db)) -> StreamingResponse:
     )
 
 
-@router.post("/sync/lineage/mysql")
-def sync_lineage_mysql(db: Session = Depends(get_db)) -> dict[str, object]:
-    """Sync table-level lineage to MySQL dm.t_relationship."""
+class SyncLineageRequest(BaseModel):
+    mysql_dsn: str | None = None
 
-    mysql_dsn = "mysql+pymysql://root:root@127.0.0.1:3306/DM"
+
+@router.post("/sync/lineage/mysql")
+def sync_lineage_mysql(request: SyncLineageRequest, db: Session = Depends(get_db)) -> dict[str, object]:
+    """Sync table-level lineage to MySQL t_relationship using the configured DSN."""
+
+    mysql_dsn = request.mysql_dsn or "mysql+pymysql://root:root@127.0.0.1:3306/DM"
     result = sync_lineage_to_mysql(db, mysql_dsn)
     return {
         "success": True,
         "inserted": result["inserted"],
-        "message": f"成功同步 {result['inserted']} 条血缘关系到 MySQL dm.t_relationship",
+        "message": f"成功同步 {result['inserted']} 条血缘关系到 MySQL t_relationship",
     }
 
 
