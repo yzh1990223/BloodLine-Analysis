@@ -17,8 +17,8 @@ from bloodline_api.models import Edge, FieldEdge, Node, ObjectMetadata
 _TARGET_SCHEMA = "dm"
 
 
-def _normalize_target_dsn(mysql_dsn: str, default_db: str = "DM") -> str:
-    """Ensure the target MySQL DSN points at the lineage database (DM).
+def _normalize_target_dsn(mysql_dsn: str, default_db: str = _TARGET_SCHEMA) -> str:
+    """Ensure the target MySQL DSN points at the lineage database (dm).
 
     If the configured database name is ``frms`` (used for reading FineReport
     config tables), replace it with ``default_db`` so that ``t_relationship``
