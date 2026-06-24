@@ -68,7 +68,7 @@ def create_t_relationship_table(db: Session) -> None:
         src_obj_type VARCHAR(50) NOT NULL,
         src_db_name VARCHAR(100),
         src_schema VARCHAR(100),
-        src_obj_enname VARCHAR(100),
+        src_obj_enname VARCHAR(500),
         src_obj_chnname VARCHAR(100),
         src_obj_sys VARCHAR(100),
         src_obj_dep VARCHAR(100),
@@ -77,7 +77,7 @@ def create_t_relationship_table(db: Session) -> None:
         tgt_obj_type VARCHAR(50) NOT NULL,
         tgt_db_name VARCHAR(100),
         tgt_schema VARCHAR(100),
-        tgt_obj_enname VARCHAR(100),
+        tgt_obj_enname VARCHAR(500),
         tgt_obj_chnname VARCHAR(100),
         tgt_obj_sys VARCHAR(100),
         tgt_obj_dep VARCHAR(100),
@@ -98,7 +98,7 @@ def create_t_relationship_table_mysql(db: Session) -> None:
         src_obj_type VARCHAR(50) NOT NULL,
         src_db_name VARCHAR(100),
         src_schema VARCHAR(100),
-        src_obj_enname VARCHAR(100),
+        src_obj_enname VARCHAR(500),
         src_obj_chnname VARCHAR(100),
         src_obj_sys VARCHAR(100),
         src_obj_dep VARCHAR(100),
@@ -107,7 +107,7 @@ def create_t_relationship_table_mysql(db: Session) -> None:
         tgt_obj_type VARCHAR(50) NOT NULL,
         tgt_db_name VARCHAR(100),
         tgt_schema VARCHAR(100),
-        tgt_obj_enname VARCHAR(100),
+        tgt_obj_enname VARCHAR(500),
         tgt_obj_chnname VARCHAR(100),
         tgt_obj_sys VARCHAR(100),
         tgt_obj_dep VARCHAR(100),
@@ -116,6 +116,9 @@ def create_t_relationship_table_mysql(db: Session) -> None:
     )
     """
     db.execute(text(ddl))
+    # Ensure columns are wide enough for long API paths, menu paths, and report file paths.
+    db.execute(text("ALTER TABLE t_relationship MODIFY COLUMN src_obj_enname VARCHAR(500)"))
+    db.execute(text("ALTER TABLE t_relationship MODIFY COLUMN tgt_obj_enname VARCHAR(500)"))
     db.commit()
 
 
@@ -303,7 +306,7 @@ def sync_lineage_to_mysql(db: Session, mysql_dsn: str) -> dict[str, int]:
                     "src_obj_type": src_meta["obj_type"],
                     "src_db_name": src_meta["db_name"],
                     "src_schema": src_meta["schema"],
-                    "src_obj_enname": src_meta["obj_enname"],
+                    "src_obj_enname": (src_meta["obj_enname"] or "")[:500],
                     "src_obj_chnname": src_meta["obj_chnname"],
                     "src_obj_sys": None,
                     "src_obj_dep": None,
@@ -312,7 +315,7 @@ def sync_lineage_to_mysql(db: Session, mysql_dsn: str) -> dict[str, int]:
                     "tgt_obj_type": tgt_meta["obj_type"],
                     "tgt_db_name": tgt_meta["db_name"],
                     "tgt_schema": tgt_meta["schema"],
-                    "tgt_obj_enname": tgt_meta["obj_enname"],
+                    "tgt_obj_enname": (tgt_meta["obj_enname"] or "")[:500],
                     "tgt_obj_chnname": tgt_meta["obj_chnname"],
                     "tgt_obj_sys": None,
                     "tgt_obj_dep": None,
