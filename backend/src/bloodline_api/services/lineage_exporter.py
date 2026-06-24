@@ -90,35 +90,68 @@ def create_t_relationship_table(db: Session) -> None:
 
 
 def create_t_relationship_table_mysql(db: Session) -> None:
-    """Create the t_relationship table if it does not exist (MySQL-compatible DDL)."""
+    """Create the t_relationship table if it does not exist (MySQL-compatible DDL).
 
-    ddl = """
-    CREATE TABLE IF NOT EXISTS t_relationship (
-        key_id INT PRIMARY KEY AUTO_INCREMENT,
-        src_obj_type VARCHAR(50) NOT NULL,
-        src_db_name VARCHAR(100),
-        src_schema VARCHAR(100),
-        src_obj_enname VARCHAR(500),
-        src_obj_chnname VARCHAR(100),
-        src_obj_sys VARCHAR(100),
-        src_obj_dep VARCHAR(100),
-        src_obj_memo VARCHAR(500),
-        src_obj_application VARCHAR(500),
-        tgt_obj_type VARCHAR(50) NOT NULL,
-        tgt_db_name VARCHAR(100),
-        tgt_schema VARCHAR(100),
-        tgt_obj_enname VARCHAR(500),
-        tgt_obj_chnname VARCHAR(100),
-        tgt_obj_sys VARCHAR(100),
-        tgt_obj_dep VARCHAR(100),
-        tgt_obj_memo VARCHAR(100),
-        tgt_obj_application VARCHAR(100)
-    )
+    If the table already exists, only attempt to widen ``src_obj_enname`` and
+    ``tgt_obj_enname`` when they are shorter than 500 characters.  Missing ALTER
+    privileges are silently ignored so deployments with a DBA-created table only
+    need INSERT permission.
     """
-    db.execute(text(ddl))
-    # Ensure columns are wide enough for long API paths, menu paths, and report file paths.
-    db.execute(text("ALTER TABLE t_relationship MODIFY COLUMN src_obj_enname VARCHAR(500)"))
-    db.execute(text("ALTER TABLE t_relationship MODIFY COLUMN tgt_obj_enname VARCHAR(500)"))
+
+    result = db.execute(text("SHOW TABLES LIKE 't_relationship'"))
+    table_exists = result.fetchone() is not None
+
+    if not table_exists:
+        ddl = """
+        CREATE TABLE IF NOT EXISTS t_relationship (
+            key_id INT PRIMARY KEY AUTO_INCREMENT,
+            src_obj_type VARCHAR(50) NOT NULL,
+            src_db_name VARCHAR(100),
+            src_schema VARCHAR(100),
+            src_obj_enname VARCHAR(500),
+            src_obj_chnname VARCHAR(100),
+            src_obj_sys VARCHAR(100),
+            src_obj_dep VARCHAR(100),
+            src_obj_memo VARCHAR(500),
+            src_obj_application VARCHAR(500),
+            tgt_obj_type VARCHAR(50) NOT NULL,
+            tgt_db_name VARCHAR(100),
+            tgt_schema VARCHAR(100),
+            tgt_obj_enname VARCHAR(500),
+            tgt_obj_chnname VARCHAR(100),
+            tgt_obj_sys VARCHAR(100),
+            tgt_obj_dep VARCHAR(100),
+            tgt_obj_memo VARCHAR(100),
+            tgt_obj_application VARCHAR(100)
+        )
+        """
+        db.execute(text(ddl))
+        db.commit()
+        return
+
+    # Table exists: ensure columns are wide enough, but do not fail if ALTER is denied.
+    column_info = db.execute(
+        text("""
+        SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_relationship'
+        AND COLUMN_NAME IN ('src_obj_enname', 'tgt_obj_enname')
+        """)
+    ).mappings()
+    lengths = {row["COLUMN_NAME"]: row["CHARACTER_MAXIMUM_LENGTH"] for row in column_info}
+
+    if lengths.get("src_obj_enname", 0) is not None and (lengths.get("src_obj_enname") or 0) < 500:
+        try:
+            db.execute(text("ALTER TABLE t_relationship MODIFY COLUMN src_obj_enname VARCHAR(500)"))
+        except Exception:
+            pass  # DBA-managed table may lack ALTER privilege.
+
+    if lengths.get("tgt_obj_enname", 0) is not None and (lengths.get("tgt_obj_enname") or 0) < 500:
+        try:
+            db.execute(text("ALTER TABLE t_relationship MODIFY COLUMN tgt_obj_enname VARCHAR(500)"))
+        except Exception:
+            pass
+
     db.commit()
 
 
