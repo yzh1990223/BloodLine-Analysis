@@ -37,6 +37,7 @@ export function TableSearchPage() {
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [latestScanRun, setLatestScanRun] = useState<LatestScanRunResponse["scan_run"]>(null);
   const [cycleSummary, setCycleSummary] = useState<CycleGroupSummaryResponse["summary"]>({
     group_count: 0,
@@ -82,6 +83,44 @@ export function TableSearchPage() {
     };
   }, []);
 
+  function formatErrorMessage(err: unknown): string {
+    if (err instanceof Error) {
+      return err.message;
+    }
+    if (typeof err === "string") {
+      return err;
+    }
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return String(err);
+    }
+  }
+
+  async function reportFailure(
+    sourceType: string,
+    filePath: string,
+    failureType: string,
+    err: unknown,
+    objectKey?: string,
+  ) {
+    const message = formatErrorMessage(err);
+    console.error(`${filePath} 失败:`, err);
+    try {
+      const { recordOperationFailure } = await import("../api");
+      await recordOperationFailure({
+        source_type: sourceType,
+        file_path: filePath,
+        failure_type: failureType,
+        message,
+        object_key: objectKey,
+      });
+    } catch (reportErr) {
+      console.error("记录失败信息失败:", reportErr);
+    }
+    return message;
+  }
+
   async function loadPreview(item: TableSummary) {
     setSelectedItem(item);
     setPreviewLoading(true);
@@ -126,30 +165,43 @@ export function TableSearchPage() {
         <button
           type="button"
           className="export-button"
-          onClick={() => {
+          disabled={exporting}
+          onClick={async () => {
+            setExporting(true);
             const dsn = latestScanRun?.inputs?.mysql_dsn;
-            const url = dsn
-              ? `/api/export/lineage/excel?mysql_dsn=${encodeURIComponent(dsn)}`
-              : "/api/export/lineage/excel";
-            fetch(url)
-              .then((res) => {
-                if (!res.ok) throw new Error("导出失败");
-                return res.blob();
-              })
-              .then((blob) => {
-                const downloadUrl = window.URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = downloadUrl;
-                a.download = "lineage.xlsx";
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                window.URL.revokeObjectURL(downloadUrl);
-              })
-              .catch((err) => alert(err instanceof Error ? err.message : "导出失败"));
+            try {
+              const url = dsn
+                ? `/api/export/lineage/excel?mysql_dsn=${encodeURIComponent(dsn)}`
+                : "/api/export/lineage/excel";
+              const res = await fetch(url);
+              if (!res.ok) {
+                let detail = `HTTP ${res.status}`;
+                try {
+                  const body = (await res.json()) as { detail?: string };
+                  if (body.detail) detail = body.detail;
+                } catch {
+                  // ignore
+                }
+                throw new Error(detail);
+              }
+              const blob = await res.blob();
+              const downloadUrl = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = downloadUrl;
+              a.download = "lineage.xlsx";
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              window.URL.revokeObjectURL(downloadUrl);
+            } catch (err) {
+              const message = await reportFailure("ui", "/api/export/lineage/excel", "export_error", err, dsn);
+              alert(`导出失败: ${message}`);
+            } finally {
+              setExporting(false);
+            }
           }}
         >
-          导出血缘
+          {exporting ? "导出中..." : "导出血缘"}
         </button>
         <button
           type="button"
@@ -157,9 +209,9 @@ export function TableSearchPage() {
           disabled={syncing}
           onClick={async () => {
             setSyncing(true);
+            const dsn = latestScanRun?.inputs?.mysql_dsn;
             try {
               const { syncLineageToMySQL } = await import("../api");
-              const dsn = latestScanRun?.inputs?.mysql_dsn;
               if (!dsn) {
                 alert("未配置 MySQL DSN，请先在高级配置中填写");
                 return;
@@ -167,8 +219,8 @@ export function TableSearchPage() {
               const res = await syncLineageToMySQL(dsn);
               alert(res.message);
             } catch (err) {
-              console.error("血缘同步失败:", err);
-              alert(err instanceof Error ? err.message : "同步失败，请查看浏览器控制台");
+              const message = await reportFailure("ui", "/api/sync/lineage/mysql", "sync_error", err, dsn);
+              alert(`同步失败: ${message}`);
             } finally {
               setSyncing(false);
             }

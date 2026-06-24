@@ -106,6 +106,23 @@ export function syncLineageToMySQL(
   });
 }
 
+export function recordOperationFailure(payload: {
+  source_type: string;
+  file_path: string;
+  failure_type: string;
+  message: string;
+  object_key?: string;
+}): Promise<{ id: number; scan_run_id: number }> {
+  /** Record a UI/operation failure so it appears in the scan failure summary. */
+  return requestJson<{ id: number; scan_run_id: number }>("/api/scan-runs/latest/failures", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
 export function fetchSchedulingLineage(
   source?: string,
   target?: string,

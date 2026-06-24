@@ -120,3 +120,38 @@ def latest_scan_failures(db: Session = Depends(get_db)) -> dict[str, object]:
     """Return the most recent scan failures grouped by source and file."""
 
     return lineage_query_service.get_latest_scan_failures(db)
+
+
+class OperationFailureRequest(BaseModel):
+    """Payload to record a non-scan operation failure from the UI."""
+
+    source_type: str
+    file_path: str
+    failure_type: str
+    message: str
+    object_key: str | None = None
+
+
+@router.post("/scan-runs/latest/failures")
+def record_latest_scan_failure(
+    request: OperationFailureRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """Record a UI/operation failure under the most recent scan run for review."""
+
+    failure = lineage_query_service.record_operation_failure(
+        db,
+        source_type=request.source_type,
+        file_path=request.file_path,
+        failure_type=request.failure_type,
+        message=request.message,
+        object_key=request.object_key,
+    )
+    return {
+        "id": failure.id,
+        "scan_run_id": failure.scan_run_id,
+        "source_type": failure.source_type,
+        "file_path": failure.file_path,
+        "failure_type": failure.failure_type,
+        "message": failure.message,
+    }

@@ -1455,6 +1455,36 @@ class LineageQueryService:
         stmt = select(ScanRun).order_by(ScanRun.created_at.desc(), ScanRun.id.desc())
         return list(db.scalars(stmt).all())
 
+    def record_operation_failure(
+        self,
+        db: Session,
+        *,
+        source_type: str,
+        file_path: str,
+        failure_type: str,
+        message: str,
+        object_key: str | None = None,
+    ) -> ScanFailure:
+        """Record a non-scan operation failure under the latest scan run for UI review."""
+
+        latest = next(iter(self.list_scan_runs(db)), None)
+        if latest is None:
+            latest = ScanRun(status="unknown", inputs={})
+            db.add(latest)
+            db.flush()
+
+        failure = ScanFailure(
+            scan_run_id=latest.id,
+            source_type=source_type,
+            file_path=file_path,
+            failure_type=failure_type,
+            message=message,
+            object_key=object_key,
+        )
+        db.add(failure)
+        db.commit()
+        return failure
+
     def get_latest_scan_failures(self, db: Session) -> dict[str, Any]:
         """Return grouped scan failures for the most recent scan run."""
 
@@ -1463,7 +1493,7 @@ class LineageQueryService:
             "scan_run_id": None,
             "failure_count": 0,
             "file_count": 0,
-            "source_counts": {"kettle": 0, "java": 0, "metadata": 0},
+            "source_counts": {"kettle": 0, "java": 0, "metadata": 0, "system": 0, "ui": 0},
         }
         if latest is None:
             return {"scan_run": None, "summary": empty_summary, "groups": []}
@@ -1476,7 +1506,7 @@ class LineageQueryService:
             ).all()
         )
         grouped: dict[str, dict[str, list[dict[str, Any]]]] = {}
-        source_counts = {"kettle": 0, "java": 0, "metadata": 0}
+        source_counts = {"kettle": 0, "java": 0, "metadata": 0, "system": 0, "ui": 0}
         for failure in failures:
             source_counts[failure.source_type] = source_counts.get(failure.source_type, 0) + 1
             grouped.setdefault(failure.source_type, {}).setdefault(failure.file_path, []).append(
@@ -1484,7 +1514,7 @@ class LineageQueryService:
             )
 
         groups: list[dict[str, Any]] = []
-        for source_type in ("kettle", "java", "metadata"):
+        for source_type in ("kettle", "java", "metadata", "system", "ui"):
             file_groups = grouped.get(source_type, {})
             groups.append(
                 {

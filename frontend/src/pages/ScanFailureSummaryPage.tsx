@@ -7,6 +7,8 @@ const SOURCE_LABELS: Record<string, string> = {
   kettle: "Kettle",
   java: "Java",
   metadata: "MySQL 元数据",
+  system: "系统操作",
+  ui: "前端操作",
 };
 
 function sourceLabel(sourceType: string): string {

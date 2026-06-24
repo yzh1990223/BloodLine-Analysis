@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -109,12 +109,23 @@ def export_lineage_excel(
     t_relationship table; otherwise the local SQLite Edge table is used.
     """
 
-    excel_bytes = build_excel_export(db, mysql_dsn=mysql_dsn)
-    return StreamingResponse(
-        iter([excel_bytes]),
-        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": "attachment; filename=lineage.xlsx"},
-    )
+    try:
+        excel_bytes = build_excel_export(db, mysql_dsn=mysql_dsn)
+        return StreamingResponse(
+            iter([excel_bytes]),
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": "attachment; filename=lineage.xlsx"},
+        )
+    except Exception as exc:
+        lineage_query_service.record_operation_failure(
+            db,
+            source_type="system",
+            file_path="/api/export/lineage/excel",
+            failure_type=exc.__class__.__name__,
+            message=str(exc),
+            object_key=mysql_dsn,
+        )
+        raise HTTPException(status_code=500, detail=f"导出失败: {exc}") from exc
 
 
 class SyncLineageRequest(BaseModel):
@@ -126,12 +137,23 @@ def sync_lineage_mysql(request: SyncLineageRequest, db: Session = Depends(get_db
     """Sync table-level lineage to MySQL t_relationship using the configured DSN."""
 
     mysql_dsn = request.mysql_dsn or "mysql+pymysql://root:root@127.0.0.1:3306/DM"
-    result = sync_lineage_to_mysql(db, mysql_dsn)
-    return {
-        "success": True,
-        "inserted": result["inserted"],
-        "message": f"成功同步 {result['inserted']} 条血缘关系到 MySQL t_relationship",
-    }
+    try:
+        result = sync_lineage_to_mysql(db, mysql_dsn)
+        return {
+            "success": True,
+            "inserted": result["inserted"],
+            "message": f"成功同步 {result['inserted']} 条血缘关系到 MySQL t_relationship",
+        }
+    except Exception as exc:
+        lineage_query_service.record_operation_failure(
+            db,
+            source_type="system",
+            file_path="/api/sync/lineage/mysql",
+            failure_type=exc.__class__.__name__,
+            message=str(exc),
+            object_key=mysql_dsn,
+        )
+        raise HTTPException(status_code=500, detail=f"同步失败: {exc}") from exc
 
 
 @router.get("/scheduling/lineage")
