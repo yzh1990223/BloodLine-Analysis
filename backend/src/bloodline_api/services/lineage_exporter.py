@@ -6,7 +6,6 @@ Supports both table-level and field-level lineage export.
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import urlparse, urlunparse
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
@@ -15,22 +14,6 @@ from bloodline_api.models import Edge, FieldEdge, Node, ObjectMetadata
 
 # Target schema for the standard t_relationship table in MySQL.
 _TARGET_SCHEMA = "dm"
-
-
-def _normalize_target_dsn(mysql_dsn: str, default_db: str = _TARGET_SCHEMA) -> str:
-    """Ensure the target MySQL DSN points at the lineage database (dm).
-
-    If the configured database name is ``frms`` (used for reading FineReport
-    config tables), replace it with ``default_db`` so that ``t_relationship``
-    is always read/written in the lineage database without forcing users to
-    change their DSN configuration.
-    """
-
-    parsed = urlparse(mysql_dsn)
-    db_name = (parsed.path or "").lstrip("/") or ""
-    if not db_name or db_name.lower() == "frms":
-        parsed = parsed._replace(path=f"/{default_db}")
-    return urlunparse(parsed)
 
 
 def _node_metadata(db: Session, node_id: int) -> dict[str, Any]:
@@ -324,8 +307,7 @@ def sync_lineage_to_mysql(db: Session, mysql_dsn: str) -> dict[str, int]:
         {"inserted": N} summary.
     """
 
-    target_dsn = _normalize_target_dsn(mysql_dsn)
-    mysql_engine = create_engine(target_dsn, future=True, pool_pre_ping=True)
+    mysql_engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
     MySQLSession = sessionmaker(bind=mysql_engine, autoflush=False, autocommit=False, future=True)
     mysql_db = MySQLSession()
 
@@ -412,8 +394,7 @@ def build_excel_export(db: Session, mysql_dsn: str | None = None) -> bytes:
 
     if mysql_dsn:
         # Read from the synced MySQL t_relationship table.
-        target_dsn = _normalize_target_dsn(mysql_dsn)
-        mysql_engine = create_engine(target_dsn, future=True, pool_pre_ping=True)
+        mysql_engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
         MySQLSession = sessionmaker(bind=mysql_engine, autoflush=False, autocommit=False, future=True)
         mysql_db = MySQLSession()
         try:
