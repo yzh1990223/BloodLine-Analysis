@@ -13,6 +13,9 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from bloodline_api.models import Edge, FieldEdge, Node, ObjectMetadata
 
+# Target schema for the standard t_relationship table in MySQL.
+_TARGET_SCHEMA = "dm"
+
 
 def _normalize_target_dsn(mysql_dsn: str, default_db: str = "DM") -> str:
     """Ensure the target MySQL DSN points at the lineage database (DM).
@@ -115,12 +118,12 @@ def create_t_relationship_table_mysql(db: Session) -> None:
     need INSERT permission.
     """
 
-    result = db.execute(text("SHOW TABLES LIKE 't_relationship'"))
+    result = db.execute(text(f"SHOW TABLES FROM `{_TARGET_SCHEMA}` LIKE 't_relationship'"))
     table_exists = result.fetchone() is not None
 
     if not table_exists:
-        ddl = """
-        CREATE TABLE IF NOT EXISTS t_relationship (
+        ddl = f"""
+        CREATE TABLE IF NOT EXISTS `{_TARGET_SCHEMA}`.`t_relationship` (
             key_id INT PRIMARY KEY AUTO_INCREMENT,
             src_obj_type VARCHAR(50) NOT NULL,
             src_db_name VARCHAR(100),
@@ -148,10 +151,10 @@ def create_t_relationship_table_mysql(db: Session) -> None:
 
     # Table exists: ensure columns are wide enough, but do not fail if ALTER is denied.
     column_info = db.execute(
-        text("""
+        text(f"""
         SELECT COLUMN_NAME, CHARACTER_MAXIMUM_LENGTH
         FROM INFORMATION_SCHEMA.COLUMNS
-        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 't_relationship'
+        WHERE TABLE_SCHEMA = '{_TARGET_SCHEMA}' AND TABLE_NAME = 't_relationship'
         AND COLUMN_NAME IN ('src_obj_enname', 'tgt_obj_enname')
         """)
     ).mappings()
@@ -159,13 +162,13 @@ def create_t_relationship_table_mysql(db: Session) -> None:
 
     if lengths.get("src_obj_enname", 0) is not None and (lengths.get("src_obj_enname") or 0) < 500:
         try:
-            db.execute(text("ALTER TABLE t_relationship MODIFY COLUMN src_obj_enname VARCHAR(500)"))
+            db.execute(text(f"ALTER TABLE `{_TARGET_SCHEMA}`.`t_relationship` MODIFY COLUMN src_obj_enname VARCHAR(500)"))
         except Exception:
             pass  # DBA-managed table may lack ALTER privilege.
 
     if lengths.get("tgt_obj_enname", 0) is not None and (lengths.get("tgt_obj_enname") or 0) < 500:
         try:
-            db.execute(text("ALTER TABLE t_relationship MODIFY COLUMN tgt_obj_enname VARCHAR(500)"))
+            db.execute(text(f"ALTER TABLE `{_TARGET_SCHEMA}`.`t_relationship` MODIFY COLUMN tgt_obj_enname VARCHAR(500)"))
         except Exception:
             pass
 
@@ -341,7 +344,7 @@ def sync_lineage_to_mysql(db: Session, mysql_dsn: str) -> dict[str, int]:
 
             mysql_db.execute(
                 text("""
-                INSERT INTO t_relationship (
+                INSERT INTO `{_TARGET_SCHEMA}`.`t_relationship` (
                     src_obj_type, src_db_name, src_schema, src_obj_enname, src_obj_chnname,
                     src_obj_sys, src_obj_dep, src_obj_memo, src_obj_application,
                     tgt_obj_type, tgt_db_name, tgt_schema, tgt_obj_enname, tgt_obj_chnname,
@@ -421,7 +424,7 @@ def build_excel_export(db: Session, mysql_dsn: str | None = None) -> bytes:
                         src_obj_sys, src_obj_dep, src_obj_memo, src_obj_application,
                         tgt_obj_type, tgt_db_name, tgt_schema, tgt_obj_enname, tgt_obj_chnname,
                         tgt_obj_sys, tgt_obj_dep, tgt_obj_memo, tgt_obj_application
-                    FROM t_relationship
+                    FROM `{_TARGET_SCHEMA}`.`t_relationship`
                 """)
             ).mappings()
             for row in rows:
