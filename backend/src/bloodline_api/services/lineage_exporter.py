@@ -332,8 +332,11 @@ def sync_lineage_to_mysql(db: Session, mysql_dsn: str) -> dict[str, int]:
         mysql_engine.dispose()
 
 
-def build_excel_export(db: Session) -> bytes:
+def build_excel_export(db: Session, mysql_dsn: str | None = None) -> bytes:
     """Build an Excel workbook with table-level lineage data.
+
+    If ``mysql_dsn`` is provided, data is read from the remote MySQL
+    ``t_relationship`` table. Otherwise the local SQLite ``Edge`` table is used.
 
     Returns the raw bytes of the .xlsx file.
     """
@@ -353,27 +356,50 @@ def build_excel_export(db: Session) -> bytes:
     ]
     ws.append(headers)
 
-    flows = db.query(Edge).filter(Edge.type == "FLOWS_TO").all()
-    for edge in flows:
-        src_meta = _node_metadata(db, edge.src_node_id)
-        tgt_meta = _node_metadata(db, edge.dst_node_id)
-        if not src_meta or not tgt_meta:
-            continue
+    if mysql_dsn:
+        # Read from the synced MySQL t_relationship table.
+        mysql_engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
+        MySQLSession = sessionmaker(bind=mysql_engine, autoflush=False, autocommit=False, future=True)
+        mysql_db = MySQLSession()
+        try:
+            rows = mysql_db.execute(
+                text("""
+                    SELECT
+                        src_obj_type, src_db_name, src_schema, src_obj_enname, src_obj_chnname,
+                        src_obj_sys, src_obj_dep, src_obj_memo, src_obj_application,
+                        tgt_obj_type, tgt_db_name, tgt_schema, tgt_obj_enname, tgt_obj_chnname,
+                        tgt_obj_sys, tgt_obj_dep, tgt_obj_memo, tgt_obj_application
+                    FROM t_relationship
+                """)
+            ).mappings()
+            for row in rows:
+                ws.append([row[h] or "" for h in headers])
+        finally:
+            mysql_db.close()
+            mysql_engine.dispose()
+    else:
+        # Fall back to local SQLite Edge data.
+        flows = db.query(Edge).filter(Edge.type == "FLOWS_TO").all()
+        for edge in flows:
+            src_meta = _node_metadata(db, edge.src_node_id)
+            tgt_meta = _node_metadata(db, edge.dst_node_id)
+            if not src_meta or not tgt_meta:
+                continue
 
-        ws.append([
-            src_meta["obj_type"],
-            src_meta["db_name"] or "",
-            src_meta["schema"] or "",
-            src_meta["obj_enname"] or "",
-            src_meta["obj_chnname"] or "",
-            "", "", "", "",  # sys, dep, memo, application
-            tgt_meta["obj_type"],
-            tgt_meta["db_name"] or "",
-            tgt_meta["schema"] or "",
-            tgt_meta["obj_enname"] or "",
-            tgt_meta["obj_chnname"] or "",
-            "", "", "", "",  # sys, dep, memo, application
-        ])
+            ws.append([
+                src_meta["obj_type"],
+                src_meta["db_name"] or "",
+                src_meta["schema"] or "",
+                src_meta["obj_enname"] or "",
+                src_meta["obj_chnname"] or "",
+                "", "", "", "",  # sys, dep, memo, application
+                tgt_meta["obj_type"],
+                tgt_meta["db_name"] or "",
+                tgt_meta["schema"] or "",
+                tgt_meta["obj_enname"] or "",
+                tgt_meta["obj_chnname"] or "",
+                "", "", "", "",  # sys, dep, memo, application
+            ])
 
     buf = BytesIO()
     wb.save(buf)

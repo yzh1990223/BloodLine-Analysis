@@ -99,10 +99,17 @@ def table_field_lineage(table_key: str, db: Session = Depends(get_db)) -> dict[s
 
 
 @router.get("/export/lineage/excel")
-def export_lineage_excel(db: Session = Depends(get_db)) -> StreamingResponse:
-    """Export table-level lineage to Excel (.xlsx) matching t_relationship columns."""
+def export_lineage_excel(
+    db: Session = Depends(get_db),
+    mysql_dsn: str | None = Query(default=None),
+) -> StreamingResponse:
+    """Export table-level lineage to Excel (.xlsx) matching t_relationship columns.
 
-    excel_bytes = build_excel_export(db)
+    If ``mysql_dsn`` is provided, data is read from the remote MySQL
+    t_relationship table; otherwise the local SQLite Edge table is used.
+    """
+
+    excel_bytes = build_excel_export(db, mysql_dsn=mysql_dsn)
     return StreamingResponse(
         iter([excel_bytes]),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",

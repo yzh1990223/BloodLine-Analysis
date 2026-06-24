@@ -123,20 +123,24 @@ export function TableSearchPage() {
           type="button"
           className="export-button"
           onClick={() => {
-            fetch("/api/export/lineage/excel")
+            const dsn = latestScanRun?.inputs?.mysql_dsn;
+            const url = dsn
+              ? `/api/export/lineage/excel?mysql_dsn=${encodeURIComponent(dsn)}`
+              : "/api/export/lineage/excel";
+            fetch(url)
               .then((res) => {
                 if (!res.ok) throw new Error("导出失败");
                 return res.blob();
               })
               .then((blob) => {
-                const url = window.URL.createObjectURL(blob);
+                const downloadUrl = window.URL.createObjectURL(blob);
                 const a = document.createElement("a");
-                a.href = url;
+                a.href = downloadUrl;
                 a.download = "lineage.xlsx";
                 document.body.appendChild(a);
                 a.click();
                 a.remove();
-                window.URL.revokeObjectURL(url);
+                window.URL.revokeObjectURL(downloadUrl);
               })
               .catch((err) => alert(err instanceof Error ? err.message : "导出失败"));
           }}
