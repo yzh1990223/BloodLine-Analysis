@@ -16,7 +16,11 @@ const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   // Centralize fetch error handling so pages only deal with domain data.
-  const response = await fetch(`${API_BASE}${path}`, init);
+  const headers = new Headers(init?.headers);
+  if (init?.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
   if (!response.ok) {
     let message = `Request failed: ${response.status}`;
     try {
