@@ -1688,7 +1688,7 @@ class LineageQueryService:
         """Return one table with its direct upstream/downstream neighbors."""
 
         table = db.scalar(
-            select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint")), Node.key == table_key)
+            select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint", "report_file", "menu")), Node.key == table_key)
         )
         if table is None:
             return None
@@ -1746,7 +1746,7 @@ class LineageQueryService:
         """Return the detail-page directional lineage subgraph in one backend round-trip."""
 
         table = db.scalar(
-            select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint")), Node.key == table_key)
+            select(Node).where(Node.type.in_(("table", "data_object", "api_endpoint", "report_file", "menu")), Node.key == table_key)
         )
         if table is None:
             return {"table_lineage": None, "items": []}
@@ -1920,7 +1920,7 @@ class LineageQueryService:
                 if node_id == start_table_id or node_id in visited:
                     continue
                 node = db.get(Node, node_id)
-                if node is None or node.type not in {"table", "data_object"}:
+                if node is None or node.type not in {"table", "data_object", "report_file", "menu"}:
                     continue
                 visited.add(node_id)
                 next_frontier.add(node_id)
