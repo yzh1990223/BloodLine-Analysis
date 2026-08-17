@@ -501,7 +501,12 @@ class LineageQueryService:
         scan_run: ScanRun,
         mysql_dsn: str | None = None,
     ) -> None:
-        """Load FineReport dataset lineage from frms.comm_finereport_record_details."""
+        """Load table-to-FineReport-file lineage from frms.comm_finereport_record_details.
+
+        For each FineReport record, parse the SQL in ``data_sql`` to obtain the
+        source tables/views and create ``FLOWS_TO`` edges from those sources to
+        the report file identified by ``report_path``.
+        """
 
         mysql_dsn = self._frms_dsn(mysql_dsn)
         try:
@@ -526,12 +531,15 @@ class LineageQueryService:
                             message=error,
                         )
                         continue
-                    dataset_node = self._get_or_create_object_node(
-                        db,
-                        name=report_path,
-                        object_type="report_dataset",
+                    file_key = f"finereport_file:{report_path}"
+                    file_node = self._get_or_create_node(
+                        db, "report_file", file_key, report_path
                     )
-                    object_nodes[dataset_node.key] = dataset_node
+                    file_payload = dict(file_node.payload or {})
+                    file_payload["object_type"] = "report_file"
+                    file_payload.setdefault("source", "finereport")
+                    file_node.payload = file_payload
+                    object_nodes[file_node.key] = file_node
                     for table_name in read_tables:
                         table_node = self._resolve_object_node(
                             db,
@@ -544,7 +552,7 @@ class LineageQueryService:
                             db,
                             "FLOWS_TO",
                             table_node.id,
-                            dataset_node.id,
+                            file_node.id,
                             is_derived=True,
                             payload={"source": "finereport"},
                         )
