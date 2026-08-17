@@ -508,12 +508,12 @@ class LineageQueryService:
             engine = create_engine(mysql_dsn, future=True, pool_pre_ping=True)
             with engine.connect() as connection:
                 rows = connection.execute(
-                    text("SELECT dataset_name, data_sql FROM frms.comm_finereport_record_details")
+                    text("SELECT report_path, data_sql FROM frms.comm_finereport_record_details")
                 ).mappings()
                 for row in rows:
-                    dataset_name = row["dataset_name"]
+                    report_path = row["report_path"]
                     data_sql = row["data_sql"]
-                    if not dataset_name or not data_sql:
+                    if not report_path or not data_sql:
                         continue
                     read_tables, _write_tables, error = extract_tables_with_error(data_sql)
                     if error:
@@ -521,14 +521,14 @@ class LineageQueryService:
                             db,
                             scan_run=scan_run,
                             source_type="finereport",
-                            file_path=dataset_name,
+                            file_path=report_path,
                             failure_type="sql_parse_error",
                             message=error,
                         )
                         continue
                     dataset_node = self._get_or_create_object_node(
                         db,
-                        name=dataset_name,
+                        name=report_path,
                         object_type="report_dataset",
                     )
                     object_nodes[dataset_node.key] = dataset_node
@@ -548,7 +548,7 @@ class LineageQueryService:
                             is_derived=True,
                             payload={"source": "finereport"},
                         )
-                        fact_edges.append(("READS", f"finereport:{dataset_name}", table_node.key))
+                        fact_edges.append(("READS", f"finereport:{report_path}", table_node.key))
             engine.dispose()
         except Exception as exc:
             self._record_scan_failure(
