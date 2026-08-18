@@ -16,6 +16,39 @@ from bloodline_api.models import Edge, FieldEdge, Node, ObjectMetadata
 _TARGET_SCHEMA = "dm"
 
 
+def _friendly_object_type(node: Node) -> str:
+    """Return a user-friendly type label for export based on node type/payload."""
+
+    if node.type == "api_endpoint":
+        return "API"
+    if node.type == "report_file":
+        return "FineReport"
+    if node.type == "menu":
+        return "菜单"
+    if node.type == "web_page":
+        return "页面"
+    if node.type == "java_module":
+        return "JAVA"
+    if node.type == "job":
+        return "JOB"
+    if node.type == "transformation":
+        return "TRANSFORMATION"
+
+    kind = (node.payload or {}).get("object_type") if node.payload else None
+    if kind == "table_view":
+        return "VIEW"
+    if kind == "api_endpoint":
+        return "API"
+    if kind == "report_file":
+        return "FineReport"
+    if kind == "menu":
+        return "菜单"
+    if kind == "web_page":
+        return "页面"
+
+    return "TABLE"
+
+
 def _node_metadata(db: Session, node_id: int) -> dict[str, Any]:
     """Fetch node and its metadata for export mapping."""
 
@@ -25,8 +58,9 @@ def _node_metadata(db: Session, node_id: int) -> dict[str, Any]:
 
     metadata = node.object_metadata
     if metadata is not None:
+        obj_type = _friendly_object_type(node)
         return {
-            "obj_type": metadata.object_kind.upper() if metadata.object_kind else "TABLE",
+            "obj_type": obj_type,
             "db_name": metadata.database_name or None,
             "schema": metadata.database_name or None,  # Username/Schema mapping
             "obj_enname": metadata.object_name or node.name,
@@ -34,33 +68,8 @@ def _node_metadata(db: Session, node_id: int) -> dict[str, Any]:
         }
 
     # Fallback for nodes without MySQL metadata
-    obj_type = "TABLE"
-    is_table_like = True
-    if node.payload:
-        kind = node.payload.get("object_type")
-        if kind == "table_view":
-            obj_type = "VIEW"
-        elif kind == "api_endpoint":
-            obj_type = "API"
-            is_table_like = False
-        elif kind == "report_file":
-            obj_type = "REPORT_FILE"
-            is_table_like = False
-        elif kind == "menu":
-            obj_type = "MENU"
-            is_table_like = False
-        elif kind == "web_page":
-            obj_type = "WEB_PAGE"
-            is_table_like = False
-        elif node.type == "java_module":
-            obj_type = "JAVA_MODULE"
-            is_table_like = False
-        elif node.type == "job":
-            obj_type = "JOB"
-            is_table_like = False
-        elif node.type == "transformation":
-            obj_type = "TRANSFORMATION"
-            is_table_like = False
+    obj_type = _friendly_object_type(node)
+    is_table_like = obj_type in {"TABLE", "VIEW"}
 
     name = node.name
     schema = None
