@@ -168,12 +168,9 @@ export function TableSearchPage() {
           disabled={exporting}
           onClick={async () => {
             setExporting(true);
-            const dsn = latestScanRun?.inputs?.mysql_dsn;
             try {
-              const url = dsn
-                ? `/api/export/lineage/excel?mysql_dsn=${encodeURIComponent(dsn)}`
-                : "/api/export/lineage/excel";
-              const res = await fetch(url);
+              // Always export from the local SQLite graph, not from MySQL.
+              const res = await fetch("/api/export/lineage/excel");
               if (!res.ok) {
                 let detail = `HTTP ${res.status}`;
                 try {
@@ -194,7 +191,7 @@ export function TableSearchPage() {
               a.remove();
               window.URL.revokeObjectURL(downloadUrl);
             } catch (err) {
-              const message = await reportFailure("ui", "/api/export/lineage/excel", "export_error", err, dsn);
+              const message = await reportFailure("ui", "/api/export/lineage/excel", "export_error", err);
               alert(`导出失败: ${message}`);
             } finally {
               setExporting(false);
