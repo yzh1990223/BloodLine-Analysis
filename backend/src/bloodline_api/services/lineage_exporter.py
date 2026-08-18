@@ -337,6 +337,9 @@ def sync_lineage_to_mysql(db: Session, mysql_dsn: str) -> dict[str, int]:
     try:
         create_t_relationship_table_mysql(mysql_db)
 
+        # Full refresh: remove existing rows before inserting the latest graph.
+        mysql_db.execute(text(f"DELETE FROM `{_TARGET_SCHEMA}`.`t_relationship`"))
+
         flows = db.query(Edge).filter(Edge.type == "FLOWS_TO").all()
         inserted = 0
 
