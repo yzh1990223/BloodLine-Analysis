@@ -573,7 +573,9 @@ a {
 }
 
 .detail-overview-flow .react-flow__node {
-  width: 146px;
+  width: auto;
+  min-width: 146px;
+  max-width: 280px;
   border: 0;
   border-radius: 8px;
   box-shadow: 0 8px 18px rgba(31, 41, 55, 0.12);
@@ -593,6 +595,7 @@ a {
   align-items: center;
   justify-content: center;
   min-height: 40px;
+  height: auto;
   padding: 10px 12px;
   text-align: center;
   border-radius: 8px;
@@ -724,6 +727,14 @@ a {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-lineage-card .node-primary-label,
+.detail-lineage-card .node-secondary-label {
+  white-space: normal;
+  word-break: break-all;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .overview-object-card .node-primary-label {
