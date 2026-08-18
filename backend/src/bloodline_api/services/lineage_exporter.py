@@ -35,22 +35,36 @@ def _node_metadata(db: Session, node_id: int) -> dict[str, Any]:
 
     # Fallback for nodes without MySQL metadata
     obj_type = "TABLE"
+    is_table_like = True
     if node.payload:
         kind = node.payload.get("object_type")
         if kind == "table_view":
             obj_type = "VIEW"
         elif kind == "api_endpoint":
             obj_type = "API"
+            is_table_like = False
+        elif kind == "report_file":
+            obj_type = "REPORT_FILE"
+            is_table_like = False
+        elif kind == "menu":
+            obj_type = "MENU"
+            is_table_like = False
+        elif kind == "web_page":
+            obj_type = "WEB_PAGE"
+            is_table_like = False
         elif node.type == "java_module":
             obj_type = "JAVA_MODULE"
+            is_table_like = False
         elif node.type == "job":
             obj_type = "JOB"
+            is_table_like = False
         elif node.type == "transformation":
             obj_type = "TRANSFORMATION"
+            is_table_like = False
 
     name = node.name
     schema = None
-    if "." in name:
+    if is_table_like and "." in name:
         schema, name = name.split(".", 1)
 
     return {
